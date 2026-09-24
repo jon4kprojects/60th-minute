@@ -56,6 +56,14 @@ function setup501() {
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
 
+  // Every control redraws the whole panel, so typed names must survive it.
+  // Without this, changing the metric or player count silently wiped them.
+  const redraw = () => {
+    const names = [...app.querySelectorAll('.nm')].map(i => i.value);
+    draw();
+    [...app.querySelectorAll('.nm')].forEach((i, k) => { if (names[k]) i.value = names[k]; });
+  };
+
   const draw = () => {
     const hasLg = club ? F501.hasLeagueSplit(DB, club) : false;
     if (!hasLg) scope = 'all';
@@ -66,7 +74,7 @@ function setup501() {
       <div class="kicker">Football 501</div>
       <h1 style="font-size:30px">Set up the <em>oche</em></h1>
       <div class="tag">Everyone starts on 501. Name players who turned out for the club —
-        their number comes off your score. Over 180 and you get nothing.</div>
+        their number comes off your score. Go below zero and you bust.</div>
 
       <label>Club</label>
       <input id="clubq" placeholder="Type a club" value="${esc(filter)}"
@@ -116,10 +124,7 @@ function setup501() {
            <span class="n">${esc(shortClub(c.name))}</span>
            <span class="m">${c.n} players</span></button>`).join('');
       box.querySelectorAll('.sg').forEach(b => b.onclick = () => {
-        club = b.dataset.k; filter = '';
-        const names = [...app.querySelectorAll('.nm')].map(i => i.value);
-        draw();
-        [...app.querySelectorAll('.nm')].forEach((i, k) => { if (names[k]) i.value = names[k]; });
+        club = b.dataset.k; filter = ''; redraw();
       });
     };
     q.oninput = () => { filter = q.value; paintClubs(); };
@@ -131,14 +136,10 @@ function setup501() {
     if (filter) paintClubs();
 
     app.querySelectorAll('#scope .chip').forEach(c => c.onclick = () => {
-      if (c.disabled) return;
-      scope = c.dataset.s;
-      const names = [...app.querySelectorAll('.nm')].map(i => i.value);
-      draw();
-      [...app.querySelectorAll('.nm')].forEach((i, k) => { if (names[k]) i.value = names[k]; });
+      if (c.disabled) return; scope = c.dataset.s; redraw();
     });
-    app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; draw(); });
-    app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => { n = +c.dataset.n; draw(); });
+    app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; redraw(); });
+    app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => { n = +c.dataset.n; redraw(); });
     document.getElementById('go').onclick = () => {
       const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);
       G = F501.createGame({ club, metric, scope, names });
@@ -167,7 +168,7 @@ function play501(msg = null, tone = '') {
       <button class="btn" id="again">Play again</button>
       <button class="btn ghost" id="home2">Home</button>`
     : `
-      <div class="turnline"><b>${esc(G.players[G.turn].name)}</b> to throw — name a ${esc(shortClub(G.club))} player</div>
+      <div class="turnline"><b>${esc(G.players[G.turn].name)}</b> to throw — name ${/^[aeiou]/i.test(shortClub(G.club)) ? 'an' : 'a'} ${esc(shortClub(G.club))} player</div>
       <div class="entry"><input id="guess" placeholder="Player name" autocomplete="off"
         autocapitalize="words" autocorrect="off" spellcheck="false"
         ><button class="btn" id="submit">Score</button></div>

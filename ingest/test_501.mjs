@@ -25,8 +25,8 @@ const say = (n) => { const r = F.scoreEntry(db, idx, g, n);
   console.log(`  ${g.players[g.turn].name.padEnd(6)} "${n}" -> ${r.status.padEnd(11)} raw=${r.raw ?? '-'} score=${r.score}  | ${F.explain(r,'appearances')}`);
   F.applyTurn(g, r); return r; };
 
-const r1 = say('Zola');                        // 312 -> over 180 -> 0
-ok(r1.status === 'over-max' && r1.score === 0, `Zola (${r1.raw}) scores 0, over the 180 max`);
+const r1 = say('Zola');                        // 312 - large scores now count
+ok(r1.status === 'ok' && r1.score === r1.raw, `Zola (${r1.raw}) counts in full, no maximum visit`);
 const r2 = say('Madueke');
 ok(r2.raw > 0 && r2.raw <= 180, `Madueke returns a usable number (${r2.raw})`);
 // Coverage gap worth keeping visible: club rosters come from Wikipedia and are

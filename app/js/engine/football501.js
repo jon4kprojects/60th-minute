@@ -7,7 +7,6 @@
 // than simply the most famous name.
 import { lookup } from '../names.js';
 
-export const MAX_VISIT = 180;
 // Labelled "appearances", not "league appearances": Wikidata mixes the two
 // conventions (Giggs is recorded at 672 for Man Utd, which is all competitions;
 // Gerrard at 504 for Liverpool, which is league only). Claiming league-only
@@ -103,14 +102,13 @@ export function scoreEntry(db, idx, game, rawName) {
   const held = p.clubTotals && p.clubTotals[game.club];
   if (raw === 0 && !held) return { status: 'no-data', player: p, score: 0, raw: 0 };
 
-  const over = raw > MAX_VISIT;
-  const score = over ? 0 : raw;
+  const score = raw;
   const cur = game.players[game.turn].score;
   const rem = cur - score;
 
   if (rem < game.checkoutLow) return { status: 'bust', player: p, raw, score: 0 };
   if (rem <= 0)               return { status: 'win',  player: p, raw, score, remaining: rem };
-  return { status: over ? 'over-max' : 'ok', player: p, raw, score, remaining: rem };
+  return { status: 'ok', player: p, raw, score, remaining: rem };
 }
 
 export function applyTurn(game, result) {
@@ -135,7 +133,6 @@ export const explain = (r, metricLabel) => ({
   duplicate:  `${r.player?.name} has already been named this round`,
   ineligible: `${r.player?.name} never played for this club`,
   'no-data':  `No ${metricLabel} recorded for ${r.player?.name} here`,
-  'over-max': `${r.player?.name} — ${r.raw} ${metricLabel}. Over 180, scores nothing`,
   bust:       `${r.player?.name} — ${r.raw}. Too many, you bust`,
   ok:         r.raw === 0 ? `${r.player?.name} — none. Nothing off`
                           : `${r.player?.name} — ${r.raw} ${metricLabel}`,
