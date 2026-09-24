@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b29.bfe8dac';
+const BUILD = 'b30.36b8802';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -34,6 +34,52 @@ function beginPaint(key) {
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
+/**
+ * A three-letter code for a club, so every row can label its own numbers
+ * instead of relying on a legend the reader has to hold in their head.
+ * Made unique within a board, since two clubs can reduce to the same letters.
+ */
+// The derived code is right more often than not, but a football audience knows
+// Spurs as TOT and Wolves as WOL, not THO and WWA. Known codes win.
+const KNOWN_ABBR = {
+  'Tottenham Hotspur': 'TOT', 'Aston Villa': 'AVL', 'Sheffield Wednesday': 'SHW',
+  'Wolverhampton Wanderers': 'WOL', 'Derby County': 'DER', 'Newcastle United': 'NEW',
+  'Leeds United': 'LEE', 'Leicester City': 'LEI', 'Sunderland': 'SUN',
+  'Crystal Palace': 'CRY', 'Bayer 04 Leverkusen': 'LEV', 'Real Madrid': 'RMA',
+  'Barcelona': 'BAR', 'Atlético Madrid': 'ATM', 'Bayern Munich': 'BAY',
+  'Borussia Dortmund': 'BVB', 'Paris Saint-Germain': 'PSG', 'Inter Milan': 'INT',
+  'AC Milan': 'MIL', 'Juventus': 'JUV', 'Ajax': 'AJA', 'PSV Eindhoven': 'PSV',
+  'Olympique de Marseille': 'OM', 'Olympique Lyonnais': 'OL', 'Sporting CP': 'SCP',
+  'Benfica': 'SLB', 'Porto': 'POR', 'Schalke 04': 'S04', 'VfB Stuttgart': 'VFB',
+  'Rangers': 'RAN', 'Celtic': 'CEL', 'West Bromwich Albion': 'WBA',
+  'Queens Park Rangers': 'QPR', 'Blackburn Rovers': 'BLA', 'Bolton Wanderers': 'BOL',
+};
+
+function abbrClub(name) {
+  const k = shortClub(name);
+  if (KNOWN_ABBR[k]) return KNOWN_ABBR[k];
+  const words = shortClub(name)
+    .replace(/[^A-Za-z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !/^\d+$/.test(w));   // drop "04", "1913", initials
+  if (!words.length) return shortClub(name).slice(0, 3).toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  if (words.length === 2) return (words[0][0] + words[1].slice(0, 2)).toUpperCase();
+  return words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
+}
+function abbrSet(names) {
+  const seen = new Map();
+  return names.map(n => {
+    let a = abbrClub(n), i = 1;
+    while ([...seen.values()].includes(a)) {           // keep codes distinct
+      a = abbrClub(n).slice(0, 2) + shortClub(n).replace(/\s/g, '')[2 + i].toUpperCase();
+      if (++i > 6) { a = abbrClub(n) + i; break; }
+    }
+    seen.set(n, a);
+    return a;
+  });
+}
+
 const shortClub = (n) => n.replace(/\s+(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)$/i,'')
   .replace(/^(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)\s+/i,'').replace(/\s+Club de Fútbol$/i,'').trim();
 
@@ -445,11 +491,12 @@ function slotRow(id, cls) {
   // On a two-club board the heading already names the sides in order, so bare
   // numbers read fine and keep the player's name on one line. With three or
   // more, label them - the order is no longer obvious at a glance.
-  // Bare numbers in board order - the legend above says which club is which,
-  // so repeating club names on every row only wrapped the player's name.
-  // Every side always appears, even where we hold no figure (Beardsley made a
-  // single Manchester United appearance and was dropping off the row).
-  const bits = b.sides.map(s => PFB.figureFor(DB, p, s) || '\u2013');
+  // Each figure carries its own three-letter club code. A column of bare
+  // numbers was unreadable once the board ran past a few rows. Every side
+  // always appears, even where we hold no figure (Beardsley made a single
+  // Manchester United appearance and was dropping off the row).
+  const codes = abbrSet(b.sides.map(x => x.label));
+  const bits = b.sides.map((s, i) => `${codes[i]} ${PFB.figureFor(DB, p, s) || '\u2013'}`);
   return `<div class="slot ${cls}"><span>${esc(p.name)}</span>` +
          (bits.length ? `<span class="fig">${esc(bits.join(' \u00b7 '))}</span>` : '') + `</div>`;
 }
@@ -470,8 +517,9 @@ function playPFB(msg = null, tone = '') {
     <div class="vsbig">${b.sides.map(s=>`<span>${esc(s.label)}</span>`).join('<i>×</i>')}</div>
     <div class="tag" style="margin-bottom:18px">Played for <b>all ${b.sides.length}</b> ·
       ${show ? `${b.count} to find` : '? to find'} · ${PB.found.size} found</div>
-    ${(found.length || (show && missing.length)) ? `<div class="legend">
-      Appearances for ${b.sides.map(x => esc(shortClub(x.label))).join(', then ')}</div>` : ''}
+    ${(found.length || (show && missing.length)) ? `<div class="legend">Appearances \u00b7
+      ${abbrSet(b.sides.map(x => x.label)).map((c, i) =>
+        `<b>${esc(c)}</b> ${esc(shortClub(b.sides[i].label))}`).join(' \u00b7 ')}</div>` : ''}
     <div class="slots">
       ${found.map(id => slotRow(id, 'on')).join('')}
       ${show ? missing.map(id => done ? slotRow(id, 'miss') : `<div class="slot"></div>`).join('') : ''}

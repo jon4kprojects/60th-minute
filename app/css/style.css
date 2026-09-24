@@ -274,3 +274,6 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .app.noanim .install{animation:none !important}
 
 .legend{color:var(--muted);font-size:11.5px;letter-spacing:.2px;margin:-6px 2px 8px;text-align:right}
+
+.legend b{color:var(--muted);font-weight:800;letter-spacing:.04em}
+.slot .fig{letter-spacing:.02em}
