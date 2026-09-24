@@ -245,15 +245,17 @@ function setupPFB() {
       <h1 style="font-size:30px">Clear the <em>board</em></h1>
       <div class="tag">Name every player who turned out for at least two of the
         chosen sides. Three lives.</div>
-      <label>Clubs</label>
+      <label>How are the clubs chosen?</label>
       <div class="chips" id="mode">
-        <button class="chip ${mode==='random'?'on':''}" data-m="random">Random</button>
-        <button class="chip ${mode==='pick'?'on':''}" data-m="pick">Choose my own</button>
+        <button class="chip ${mode==='random'?'on':''}" data-m="random">Deal me some</button>
+        <button class="chip ${mode==='pick'?'on':''}" data-m="pick">I'll pick them</button>
       </div>
       ${mode==='random' ? `
-        <label>How many</label>
+        <label>How many clubs</label>
         <div class="chips" id="n">${[2,3,4,5].map(i=>
-          `<button class="chip ${i===n?'on':''}" data-n="${i}">${i}</button>`).join('')}</div>`
+          `<button class="chip ${i===n?'on':''}" data-n="${i}">${i} club${i>1?'s':''}</button>`).join('')}</div>
+        <div class="tag" style="margin:8px 2px 0">More clubs means a bigger board — you still
+          only need players who turned out for <b>two</b> of them.</div>`
       : `
         <label>Pick 2–${PFB.MAX_SIDES} (${chosen.length} chosen)</label>
         <div class="picklist">${clubs.map(c=>
