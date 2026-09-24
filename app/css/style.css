@@ -182,3 +182,8 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .picklist{max-height:200px}
 .pk.off,.pk[disabled]{opacity:.35}
 .chip.off,.chip[disabled]{opacity:.35}
+
+.chosen{display:flex;align-items:center;gap:10px;margin-top:10px;padding:13px 15px;
+  background:linear-gradient(180deg,var(--card),#111319);border:1.5px solid var(--hot);
+  border-radius:12px;font-size:17px;font-weight:680}
+.chosen .x{margin-left:auto;font-size:12px;color:var(--muted);font-weight:500}

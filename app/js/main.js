@@ -54,7 +54,7 @@ function home() {
 function setup501() {
   const clubs = F501.clubsWithDepth(DB, 15).slice()
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
-  let club = clubs[0] && clubs[0].name, metric = 'goals', scope = 'all', n = 2, filter = '';
+  let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
 
   const draw = () => {
     const hasLg = club ? F501.hasLeagueSplit(DB, club) : false;
@@ -69,11 +69,10 @@ function setup501() {
         their number comes off your score. Over 180 and you get nothing.</div>
 
       <label>Club</label>
-      <input id="clubq" placeholder="Type a club, or pick below" value="${esc(filter)}"
+      <input id="clubq" placeholder="Type a club" value="${esc(filter)}"
         autocomplete="off" autocorrect="off" spellcheck="false">
-      <div class="picklist" id="clublist">${shown.map(c =>
-        `<button class="pk ${c.name === club ? 'on' : ''}" data-k="${esc(c.name)}">${esc(shortClub(c.name))}</button>`
-        ).join('') || '<div class="tag" style="margin:8px 2px">No club matches that.</div>'}</div>
+      <div class="sugg" id="clublist" hidden></div>
+      ${club && !filter ? `<div class="chosen">${esc(shortClub(club))}<button class="x" id="clear">change</button></div>` : ''}
 
       <label>Score by</label>
       <div class="chips" id="metric">${Object.entries(F501.METRICS).map(([k, m]) =>
@@ -85,8 +84,8 @@ function setup501() {
         <button class="chip ${scope === 'league' ? 'on' : ''} ${hasLg ? '' : 'off'}"
           data-s="league" ${hasLg ? '' : 'disabled'}>league only</button>
       </div>
-      ${hasLg ? '' : `<div class="tag" style="margin:6px 2px 0">League-only figures aren't published for
-        ${esc(shortClub(club || ''))}, so this round counts all competitions.</div>`}
+      ${club && !hasLg ? `<div class="tag" style="margin:6px 2px 0">League-only figures aren't published
+        for ${esc(shortClub(club))}, so this round counts all competitions.</div>` : ''}
       ${DB.statSource ? `<div class="scopenote" style="margin-top:14px">Figures: ${esc(DB.statScope)}<br>
         <span>Source: ${esc(DB.statSource)}</span></div>` : ''}
 
@@ -95,21 +94,40 @@ function setup501() {
         `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
       <div id="names">${Array.from({length: n}, (_, i) =>
         `<input class="nm" placeholder="Player ${i+1}" style="margin-top:8px">`).join('')}</div>
-      <button class="btn" id="go" ${club ? '' : 'disabled'}>Start</button></div>`));
+      <button class="btn" id="go" ${club ? '' : 'disabled'}>${club ? 'Start' : 'Choose a club'}</button></div>`));
 
     document.getElementById('back').onclick = home;
     const q = document.getElementById('clubq');
-    q.oninput = () => {
-      filter = q.value;
-      const m = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
-      if (m.length === 1) club = m[0].name;        // typing a full name selects it
-      const names = [...app.querySelectorAll('.nm')].map(i => i.value);
-      draw();
-      const q2 = document.getElementById('clubq');
-      q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length);
-      [...app.querySelectorAll('.nm')].forEach((i, k) => { if (names[k]) i.value = names[k]; });
+    const box = document.getElementById('clublist');
+    const clr = document.getElementById('clear');
+    if (clr) clr.onclick = () => { club = null; filter = ''; draw(); };
+
+    // Suggestions appear as you type; there is no preset list to pick from.
+    const paintClubs = () => {
+      const t = q.value.trim().toLowerCase();
+      const hits = t.length < 1 ? []
+        : clubs.filter(c => shortClub(c.name).toLowerCase().includes(t)).slice(0, 7);
+      if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      box.innerHTML = hits.map(c =>
+        `<button class="sg" data-k="${esc(c.name)}">
+           <span class="n">${esc(shortClub(c.name))}</span>
+           <span class="m">${c.n} players</span></button>`).join('');
+      box.querySelectorAll('.sg').forEach(b => b.onclick = () => {
+        club = b.dataset.k; filter = '';
+        const names = [...app.querySelectorAll('.nm')].map(i => i.value);
+        draw();
+        [...app.querySelectorAll('.nm')].forEach((i, k) => { if (names[k]) i.value = names[k]; });
+      });
     };
-    app.querySelectorAll('#clublist .pk').forEach(b => b.onclick = () => { club = b.dataset.k; draw(); });
+    q.oninput = () => { filter = q.value; paintClubs(); };
+    q.onkeydown = (e) => {
+      if (e.key !== 'Enter') return;
+      const first = box.querySelector('.sg');
+      if (first) first.click();
+    };
+    if (filter) paintClubs();
+
     app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; draw(); });
     app.querySelectorAll('#scope .chip').forEach(c => c.onclick = () => {
       if (c.disabled) return; scope = c.dataset.s; draw();
