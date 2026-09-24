@@ -83,9 +83,10 @@ export async function loadData() {
   DB.byClub = new Map();
   DB.byNation = new Map();
   for (const p of players) {
-    for (const c of p.clubs) {
-      if (!DB.byClub.has(c.club)) DB.byClub.set(c.club, new Set());
-      DB.byClub.get(c.club).add(p.id);
+    // membership uses allClubs (every spell), not the display-filtered list
+    for (const club of (p.allClubs || p.clubs.map(c => c.club))) {
+      if (!DB.byClub.has(club)) DB.byClub.set(club, new Set());
+      DB.byClub.get(club).add(p.id);
     }
     if (p.nationality) {
       if (!DB.byNation.has(p.nationality)) DB.byNation.set(p.nationality, new Set());

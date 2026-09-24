@@ -68,7 +68,7 @@ export function createGame(board) {
 
 const sidesFor = (db, p, sides) =>
   sides.filter(s => s.kind === 'country' ? p.nationality === s.key
-                                         : p.clubs.some(c => c.club === s.key));
+                                         : (p.allClubs || p.clubs.map(c => c.club)).includes(s.key));
 
 export function guess(db, idx, game, raw) {
   const b = game.board;

@@ -20,7 +20,7 @@ def norm(s):
     return re.sub(r'[^a-z ]', '', s.lower()).strip()
 
 data = json.load(open(os.path.join(OUT, "dataset.json")))
-stats = json.load(open(os.path.join(OUT, "club_stats.json")))
+stats = json.load(open(os.path.join(OUT, "club_stats_verified.json")))
 players = data["players"]
 
 # index our players by normalised name
@@ -38,14 +38,20 @@ for club, roster in stats.items():
         if not w: continue
         # Stored once per club, not per spell. Drogba had two Chelsea spells and
         # writing the club total onto each made him read 328 goals instead of 164.
-        p.setdefault("clubTotals", {})[club] = {"apps": w["apps"], "goals": w["goals"]}
+        rec = {"apps": w["apps"], "goals": w["goals"]}
+        # league-only figures where the source page breaks them out
+        if w.get("lgApps") is not None: rec["lgApps"] = w["lgApps"]
+        if w.get("lgGoals") is not None: rec["lgGoals"] = w["lgGoals"]
+        p.setdefault("clubTotals", {})[club] = rec
         hits += 1
     applied += hits
     verified.append({"club": club, "roster": len(roster), "matched": hits})
     print(f"  {club[:30]:30s} wikipedia {len(roster):4d} players, matched {hits:3d} of ours")
 
 data["verifiedClubs"] = sorted(v["club"] for v in verified)
-data["statScope"] = "All competitive appearances and goals for the club"
+lg = sum(1 for p in players for t in (p.get("clubTotals") or {}).values() if "lgApps" in t or "lgGoals" in t)
+data["statScope"] = "Competitive appearances and goals for the club"
+data["leagueSplits"] = lg
 data["statSource"] = "Wikipedia club player lists (CC BY-SA)"
 
 body = json.dumps(data, separators=(",", ":"))

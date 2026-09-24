@@ -17,6 +17,29 @@ export const METRICS = {
   apps:  { label: 'appearances', short: 'apps' },
 };
 
+// Competition scope is a separate axis from the statistic. League-only figures
+// exist only where the club's source page breaks them out, so the option is
+// offered per club rather than promised everywhere.
+export const SCOPES = {
+  all:    { label: 'all competitions', suffix: '' },
+  league: { label: 'league only',      suffix: 'lg' },
+};
+export const statKey = (metric, scope) =>
+  scope === 'league' ? 'lg' + metric[0].toUpperCase() + metric.slice(1) : metric;
+
+/** Does this club publish league-only figures? */
+export function hasLeagueSplit(db, clubName) {
+  let seen = 0, withLeague = 0;
+  for (const p of db.players) {
+    const t = p.clubTotals && p.clubTotals[clubName];
+    if (!t) continue;
+    seen++;
+    if (t.lgApps != null || t.lgGoals != null) withLeague++;
+    if (seen >= 25) break;
+  }
+  return seen > 0 && withLeague / seen > 0.6;
+}
+
 /**
  * Only clubs with verified figures are playable here.
  *
@@ -36,12 +59,15 @@ export function clubsWithDepth(db, min = 15) {
   return [...c.values()].filter(x => x.n >= min).sort((a, b) => b.n - a.n);
 }
 
+// Eligibility is "did he ever turn out for them", so it reads allClubs - a
+// 12-game spell still counts.
 export const rosterOf = (db, clubName) =>
-  new Set(db.players.filter(p => p.clubs.some(c => c.club === clubName)).map(p => p.id));
+  new Set(db.players.filter(p =>
+    (p.allClubs || p.clubs.map(c => c.club)).includes(clubName)).map(p => p.id));
 
-export function createGame({ club, metric, names, checkoutLow = -10 }) {
+export function createGame({ club, metric, scope = 'all', names, checkoutLow = -10 }) {
   return {
-    club, metric, checkoutLow,
+    club, metric, scope, checkoutLow,
     players: names.map(n => ({ name: n, score: 501, history: [] })),
     turn: 0, used: new Set(), finished: false, winner: null,
   };
@@ -55,9 +81,13 @@ export function createGame({ club, metric, names, checkoutLow = -10 }) {
  * summing a verified total across two spells made Drogba read 328 Chelsea
  * goals instead of 164.
  */
-export const valueFor = (player, clubName, metric) => {
+export const valueFor = (player, clubName, metric, scope = 'all') => {
   const t = player.clubTotals && player.clubTotals[clubName];
-  if (t) return t[metric] || 0;
+  if (t) {
+    const k = statKey(metric, scope);
+    if (t[k] != null) return t[k];
+    return t[metric] || 0;                       // fall back to all-competitions
+  }
   return player.clubs.filter(c => c.club === clubName)
                      .reduce((a, c) => a + (c[metric] || 0), 0);
 };
@@ -73,8 +103,12 @@ export function scoreEntry(db, idx, game, rawName) {
   if (game.used.has(p.id)) return { status: 'duplicate', player: p, score: 0 };
   if (!roster.has(p.id)) return { status: 'ineligible', player: p, score: 0 };
 
-  const raw = valueFor(p, game.club, game.metric);
-  if (!raw) return { status: 'no-data', player: p, score: 0, raw: 0 };
+  const raw = valueFor(p, game.club, game.metric, game.scope);
+  // A genuine zero is a legitimate turn, not missing data: Mascherano really
+  // did score none for West Ham. Only treat it as missing if we hold nothing
+  // for that club at all.
+  const held = p.clubTotals && p.clubTotals[game.club];
+  if (raw === 0 && !held) return { status: 'no-data', player: p, score: 0, raw: 0 };
 
   const over = raw > MAX_VISIT;
   const score = over ? 0 : raw;
@@ -110,6 +144,7 @@ export const explain = (r, metricLabel) => ({
   'no-data':  `No ${metricLabel} recorded for ${r.player?.name} here`,
   'over-max': `${r.player?.name} — ${r.raw} ${metricLabel}. Over 180, scores nothing`,
   bust:       `${r.player?.name} — ${r.raw}. Too many, you bust`,
-  ok:         `${r.player?.name} — ${r.raw} ${metricLabel}`,
+  ok:         r.raw === 0 ? `${r.player?.name} — none. Nothing off`
+                          : `${r.player?.name} — ${r.raw} ${metricLabel}`,
   win:        `${r.player?.name} — ${r.raw}. Checked out!`,
 }[r.status]);

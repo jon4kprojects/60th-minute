@@ -155,6 +155,17 @@ for pid, p in players.items():
     if len(path) < MIN_CLUBS:
         rejected["too few clubs"] += 1; continue
 
+    # Baseline per-club figures from Wikidata, so a short spell still scores.
+    # merge_clubstats overwrites these with verified figures where they exist;
+    # without a baseline, naming Demba Ba for West Ham scored nothing.
+    base = {}
+    for sp in raw:
+        cl = sp["club"]
+        if not cl or RESERVE_RE.search(cl): continue
+        cur = base.setdefault(cl, {"apps": 0, "goals": 0})
+        cur["apps"] = max(cur["apps"], sp["apps"] or 0)
+        cur["goals"] = max(cur["goals"], sp["goals"] or 0)
+
     b = bio.get(pid, {})
     natl = sorted(nat.get(pid, []), reverse=True)
     out.append({
@@ -174,6 +185,13 @@ for pid, p in players.items():
             [y for s2 in path for y in (s2["start"], s2["end"] or s2["start"]) if y]),
         "clubs": [{"club": s["club"], "country": s["country"], "from": s["start"],
                    "to": s["end"], "apps": s["apps"], "goals": s["goals"]} for s in path],
+        # EVERY club the player turned out for, including short spells.
+        # `clubs` above is filtered for readable career paths, but filtering the
+        # membership fact made the app deny that Demba Ba (12 games) and
+        # Mascherano (5) ever played for West Ham. Display and fact are
+        # different questions and must not share a filter.
+        "allClubs": sorted(base.keys()),
+        "clubTotals": base,
     })
 
 out.sort(key=lambda p: -p["fame"])

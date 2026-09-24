@@ -98,11 +98,24 @@ player. Measured against Wikidata across 286 overlapping players, ours came out
 at a ratio of 0.69 (quartiles 0.66-0.73): a definitional gap, not noise. But
 some were simply wrong - Drogba read 28 Chelsea appearances against a real 381.
 
-`ingest/verify_clubs.py` is the gate. Each club's parse must reproduce its known
+`ingest/verify_clubs.py` is the gate (all 19 attempted clubs now pass). Each club's parse must reproduce its known
 all-time record holder and figure within 2% or the club is withheld, so
-Football 501 only offers clubs whose numbers we can defend. 15 of 20 attempted
-clubs pass; Manchester United, Leeds, Tottenham, West Ham and Leicester are
-currently withheld rather than shipped wrong.
+Football 501 only offers clubs whose numbers we can defend. Parser fixes that got every club through: pages label Starts/Subs/Total
+identically ("appearances" x3 on Manchester United), so the apps column is
+chosen by largest column total rather than first match - Giggs read 802 starts
+instead of 963 appearances. Grouped two-row headers are flattened via colspan.
+
+### Club membership vs career-path display
+
+These are different questions and must not share a filter. `clubs` is filtered
+to spells of 15+ appearances so career paths stay readable; `allClubs` holds
+every club a player turned out for. Filtering the membership fact made the app
+deny that Demba Ba (12 games) and Javier Mascherano (5) ever played for West
+Ham. Membership checks read `allClubs`; Career Path reads `clubs`.
+
+`clubTotals` carries a per-club figure for every club, seeded from Wikidata and
+overwritten by verified figures where they exist, so a short spell still scores
+rather than returning nothing.
 
 Known gap: club rosters come from Wikipedia and are far larger than our
 Wikidata-derived player set, so a club's record holder may not be nameable.

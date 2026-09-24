@@ -52,9 +52,14 @@ function home() {
 
 /* ---------------- Football 501 ---------------- */
 function setup501() {
-  const clubs = F501.clubsWithDepth(DB, 15);
-  let metric = 'goals', n = 2;
+  const clubs = F501.clubsWithDepth(DB, 15).slice()
+    .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
+  let club = clubs[0] && clubs[0].name, metric = 'goals', scope = 'all', n = 2, filter = '';
+
   const draw = () => {
+    const hasLg = club ? F501.hasLeagueSplit(DB, club) : false;
+    if (!hasLg) scope = 'all';
+    const shown = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
     app.innerHTML = '';
     app.append(el(`<div>
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
@@ -62,25 +67,57 @@ function setup501() {
       <h1 style="font-size:30px">Set up the <em>oche</em></h1>
       <div class="tag">Everyone starts on 501. Name players who turned out for the club —
         their number comes off your score. Over 180 and you get nothing.</div>
+
       <label>Club</label>
-      <select id="club">${clubs.map(c =>
-        `<option value="${esc(c.name)}">${esc(shortClub(c.name))} — ${c.n} players</option>`).join('')}</select>
-      ${DB.statScope ? `<div class="scopenote">${esc(DB.statScope)}<br><span>Source: ${esc(DB.statSource||'')}</span></div>` : ''}
+      <input id="clubq" placeholder="Type a club, or pick below" value="${esc(filter)}"
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <div class="picklist" id="clublist">${shown.map(c =>
+        `<button class="pk ${c.name === club ? 'on' : ''}" data-k="${esc(c.name)}">${esc(shortClub(c.name))}</button>`
+        ).join('') || '<div class="tag" style="margin:8px 2px">No club matches that.</div>'}</div>
+
       <label>Score by</label>
       <div class="chips" id="metric">${Object.entries(F501.METRICS).map(([k, m]) =>
         `<button class="chip ${k === metric ? 'on' : ''}" data-m="${k}">${m.label}</button>`).join('')}</div>
+
+      <label>Competitions</label>
+      <div class="chips" id="scope">
+        <button class="chip ${scope === 'all' ? 'on' : ''}" data-s="all">all competitions</button>
+        <button class="chip ${scope === 'league' ? 'on' : ''} ${hasLg ? '' : 'off'}"
+          data-s="league" ${hasLg ? '' : 'disabled'}>league only</button>
+      </div>
+      ${hasLg ? '' : `<div class="tag" style="margin:6px 2px 0">League-only figures aren't published for
+        ${esc(shortClub(club || ''))}, so this round counts all competitions.</div>`}
+      ${DB.statSource ? `<div class="scopenote" style="margin-top:14px">Figures: ${esc(DB.statScope)}<br>
+        <span>Source: ${esc(DB.statSource)}</span></div>` : ''}
+
       <label>Players</label>
       <div class="chips" id="np">${[2,3,4].map(i =>
         `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
       <div id="names">${Array.from({length: n}, (_, i) =>
-        `<input class="nm" placeholder="Player ${i+1}" value="" style="margin-top:8px">`).join('')}</div>
-      <button class="btn" id="go">Start</button></div>`));
+        `<input class="nm" placeholder="Player ${i+1}" style="margin-top:8px">`).join('')}</div>
+      <button class="btn" id="go" ${club ? '' : 'disabled'}>Start</button></div>`));
+
     document.getElementById('back').onclick = home;
+    const q = document.getElementById('clubq');
+    q.oninput = () => {
+      filter = q.value;
+      const m = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
+      if (m.length === 1) club = m[0].name;        // typing a full name selects it
+      const names = [...app.querySelectorAll('.nm')].map(i => i.value);
+      draw();
+      const q2 = document.getElementById('clubq');
+      q2.focus(); q2.setSelectionRange(q2.value.length, q2.value.length);
+      [...app.querySelectorAll('.nm')].forEach((i, k) => { if (names[k]) i.value = names[k]; });
+    };
+    app.querySelectorAll('#clublist .pk').forEach(b => b.onclick = () => { club = b.dataset.k; draw(); });
     app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; draw(); });
+    app.querySelectorAll('#scope .chip').forEach(c => c.onclick = () => {
+      if (c.disabled) return; scope = c.dataset.s; draw();
+    });
     app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => { n = +c.dataset.n; draw(); });
     document.getElementById('go').onclick = () => {
       const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);
-      G = F501.createGame({ club: document.getElementById('club').value, metric, names });
+      G = F501.createGame({ club, metric, scope, names });
       play501();
     };
   };
@@ -92,7 +129,7 @@ function play501(msg = null, tone = '') {
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button>
-      <span>${esc(shortClub(G.club))} · ${m.label}</span></div>
+      <span>${esc(shortClub(G.club))} · ${m.label} · ${esc(F501.SCOPES[G.scope||'all'].label)}</span></div>
     ${DB.statScope ? `<div class="scopeline">${esc(DB.statScope)}</div>` : ''}
     <div class="board">${G.players.map((p, i) => {
       const last = p.history[p.history.length - 1];

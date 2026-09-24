@@ -18,7 +18,7 @@ for (let i=0;i<200;i++){
   for (const id of b.answerIds){
     const p=db.byId.get(id);
     const n=b.sides.filter(s=> s.kind==='country' ? p.nationality===s.key
-                                                  : p.clubs.some(c=>c.club===s.key)).length;
+                                                  : (p.allClubs||p.clubs.map(c=>c.club)).includes(s.key)).length;
     if(n<2){bad++;break;}
   }
 }
@@ -37,7 +37,7 @@ ok(r.status==='already', 'same player cannot be used twice');
 ok(g.lives===P.LIVES, 'a repeat does not cost a life');
 r=P.guess(db,idx,g,'Zibblewick Nonesuch'); P.apply(g,r);
 ok(r.status==='unknown' && g.lives===P.LIVES, 'a name we do not hold costs no life (our gap, not their error)');
-const onlyLeft=db.players.find(p=>p.clubs.some(c=>c.club===b.sides[0].key) && !b.answerIds.includes(p.id));
+const onlyLeft=db.players.find(p=>(p.allClubs||[]).includes(b.sides[0].key) && !b.answerIds.includes(p.id));
 if(onlyLeft){ r=P.guess(db,idx,g,onlyLeft.name); P.apply(g,r);
   ok(r.status==='one-side' && g.lives===P.LIVES-1, `"${onlyLeft.name}" -> ${P.explain(r)}`); }
 console.log('\n=== clearing it ===');
@@ -59,5 +59,5 @@ const man=P.build(db,picks);
 console.log(`  ${picks.map(p=>p.label).join(' × ')} = ${man.count} players`);
 ok(man.answerIds.every(id=>{
   const p=db.byId.get(id);
-  return picks.filter(s=>p.clubs.some(c=>c.club===s.key)).length>=2;
+  return picks.filter(s=>(p.allClubs||[]).includes(s.key)).length>=2;
 }), 'manual board answers all belong to at least two of the picks');
