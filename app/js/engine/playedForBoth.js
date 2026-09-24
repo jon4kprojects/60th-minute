@@ -17,7 +17,17 @@ import { shortClub } from '../data.js';
 const MIN_ON_BOARD = 5, MAX_ON_BOARD = 20;
 const CLUB_PROM = 8, NAT_PROM = 10;
 export const LIVES = 3;
-export const MAX_SIDES = 5;
+
+// No fixed cap on hand-picked sides. The data does not impose one - Sebastian
+// Abreu alone turned out for 30 clubs - and the compatible-club filter stops
+// you naturally when nothing shares a player. What DOES bite is board size:
+// 14 hand-picked clubs produce 533 names, which nobody clears. So the app
+// warns rather than forbids, and the choice stays yours.
+export const BIG_BOARD = 40;
+
+// Dealt boards are capped by playability, not by club count: past six clubs
+// the board reliably exceeds MAX_ON_BOARD and cannot be dealt at all.
+export const MAX_DEAL = 6;
 
 export const clubChoices = (db) =>
   [...db.clubProm].filter(([, n]) => n >= CLUB_PROM)
@@ -28,6 +38,26 @@ export const countryChoices = (db) =>
   [...db.natProm].filter(([, n]) => n >= NAT_PROM)
     .sort((a, b) => b[1] - a[1])
     .map(([c]) => ({ key: c, label: c, kind: 'country' }));
+
+/**
+ * Clubs that would actually contribute to a board alongside those already
+ * chosen — i.e. that share at least one player with them.
+ *
+ * Offering anything else lets you build a board with nothing on it, which is a
+ * dead end you only discover after pressing Start.
+ */
+export function compatibleClubs(db, chosenKeys) {
+  const all = clubChoices(db);
+  if (!chosenKeys.length) return all;
+  const pool = new Set();
+  for (const k of chosenKeys)
+    for (const id of db.byClub.get(k) || []) pool.add(id);
+  return all.filter(c => {
+    if (chosenKeys.includes(c.key)) return false;
+    for (const id of db.byClub.get(c.key) || []) if (pool.has(id)) return true;
+    return false;
+  });
+}
 
 const setOf = (db, side) =>
   side.kind === 'country' ? db.byNation.get(side.key) : db.byClub.get(side.key);
@@ -47,6 +77,7 @@ export function build(db, sides) {
 }
 
 export function generate(db, rnd, n = 2) {
+  if (n === 'any') n = 2 + Math.floor(rnd() * (MAX_DEAL - 1));   // surprise me
   const clubs = clubChoices(db);
   const countries = countryChoices(db);
   if (clubs.length < n) return null;
@@ -59,6 +90,19 @@ export function generate(db, rnd, n = 2) {
       return { mode: 'played-for-both', sides, answerIds: ids, count: ids.length };
   }
   return null;
+}
+
+/**
+ * A player's figure for one side of the board, for display.
+ * Clubs show appearances; a country side shows caps.
+ */
+export function figureFor(db, player, side) {
+  if (side.kind === 'country') return player.caps ? `${player.caps} caps` : null;
+  const t = player.clubTotals && player.clubTotals[side.key];
+  if (t && t.apps) return `${t.apps}`;
+  const sum = player.clubs.filter(c => c.club === side.key)
+                          .reduce((a, c) => a + (c.apps || 0), 0);
+  return sum ? `${sum}` : null;
 }
 
 export function createGame(board) {

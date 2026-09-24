@@ -187,3 +187,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
   background:linear-gradient(180deg,var(--card),#111319);border:1.5px solid var(--hot);
   border-radius:12px;font-size:17px;font-weight:680}
 .chosen .x{margin-left:auto;font-size:12px;color:var(--muted);font-weight:500}
+
+.slot{justify-content:space-between;gap:12px}
+.slot .fig{color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
+.slot.on .fig{color:var(--amber)}

@@ -237,54 +237,100 @@ let PB = null;
 function setupPFB() {
   const clubs = PFB.clubChoices(DB);
   let mode = 'random', n = 2, chosen = [];
+
   const draw = () => {
+    const picked = chosen.filter(Boolean);
+    const more = PFB.compatibleClubs(DB, picked);
+    const boardSize = picked.length >= 2
+      ? PFB.build(DB, picked.map(k => clubs.find(c => c.key === k))).count : 0;
+
     app.innerHTML = '';
     app.append(el(`<div>
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
       <div class="kicker">Played for Both</div>
       <h1 style="font-size:30px">Clear the <em>board</em></h1>
       <div class="tag">Name every player who turned out for at least two of the
-        chosen sides. Three lives.</div>
-      <label>How are the clubs chosen?</label>
+        chosen clubs. Three lives.</div>
+
+      <label>Clubs</label>
       <div class="chips" id="mode">
-        <button class="chip ${mode==='random'?'on':''}" data-m="random">Deal me some</button>
-        <button class="chip ${mode==='pick'?'on':''}" data-m="pick">I'll pick them</button>
+        <button class="chip ${mode === 'random' ? 'on' : ''}" data-m="random">Random</button>
+        <button class="chip ${mode === 'pick' ? 'on' : ''}" data-m="pick">Choose my own</button>
       </div>
-      ${mode==='random' ? `
+
+      ${mode === 'random' ? `
         <label>How many clubs</label>
-        <div class="chips" id="n">${[2,3,4,5].map(i=>
-          `<button class="chip ${i===n?'on':''}" data-n="${i}">${i} club${i>1?'s':''}</button>`).join('')}</div>
+        <div class="chips" id="n">
+          ${[2, 3, 4, 5, 6].map(i =>
+            `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}
+          <button class="chip ${n === 'any' ? 'on' : ''}" data-n="any">Any</button>
+        </div>
         <div class="tag" style="margin:8px 2px 0">More clubs means a bigger board — you still
           only need players who turned out for <b>two</b> of them.</div>`
       : `
-        <label>Pick 2–${PFB.MAX_SIDES} (${chosen.length} chosen)</label>
-        <div class="picklist">${clubs.map(c=>
-          `<button class="pk ${chosen.includes(c.key)?'on':''}" data-k="${esc(c.key)}">${esc(c.label)}</button>`).join('')}</div>`}
-      <button class="btn" id="go" ${mode==='pick' && (chosen.length<2||chosen.length>PFB.MAX_SIDES)?'disabled':''}>
-        ${mode==='random'?'Deal a board':'Start'}</button>
+        ${picked.map((k, i) => `
+          <label>Club ${i + 1}</label>
+          <div class="chosen">${esc(shortClub(k))}<button class="x" data-drop="${i}">remove</button></div>`).join('')}
+        ${more.length ? `
+          <label>${picked.length ? 'Add another club' : 'Club 1'}</label>
+          <input class="clubslot" placeholder="Type a club"
+            autocomplete="off" autocorrect="off" spellcheck="false">
+          <div class="sugg" id="clubsugg" hidden></div>`
+        : `<div class="tag" style="margin:10px 2px 0">No other club shares a player with these.</div>`}
+        ${picked.length >= 2 ? `<div class="tag" style="margin:10px 2px 0">${
+          boardSize >= PFB.BIG_BOARD
+            ? `Big board — <b>${boardSize} players</b> to find, with three lives. Fewer clubs makes a shorter round.`
+            : 'Only clubs sharing a player with your picks are offered, so the board is never empty.'
+        }</div>` : ''}`}
+
+      <button class="btn" id="go" ${mode === 'pick' && picked.length < 2 ? 'disabled' : ''}>
+        ${mode === 'random' ? 'Deal a board'
+          : picked.length < 2 ? `Pick ${2 - picked.length} more`
+          : `Start · ${picked.length} clubs`}</button>
     </div>`));
+
     document.getElementById('back').onclick = home;
-    app.querySelectorAll('#mode .chip').forEach(c=>c.onclick=()=>{mode=c.dataset.m;draw();});
-    app.querySelectorAll('#n .chip').forEach(c=>c.onclick=()=>{n=+c.dataset.n;draw();});
-    app.querySelectorAll('.pk').forEach(b=>b.onclick=()=>{
-      const k=b.dataset.k;
-      if (chosen.includes(k)) chosen = chosen.filter(x=>x!==k);
-      else if (chosen.length < PFB.MAX_SIDES) chosen.push(k);
-      draw();
+    app.querySelectorAll('#mode .chip').forEach(c => c.onclick = () => { mode = c.dataset.m; draw(); });
+    app.querySelectorAll('#n .chip').forEach(c => c.onclick = () => {
+      n = c.dataset.n === 'any' ? 'any' : +c.dataset.n; draw();
     });
+    app.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
+      // removing a club drops the ones after it too: those were filtered
+      // against it and may no longer share a player with what remains
+      chosen = chosen.slice(0, +b.dataset.drop); draw();
+    });
+
+    // One typeahead, offering only clubs that share a player with the picks so
+    // far, so a board can never come out empty. There is no cap on how many
+    // you add - the filter runs out before the data does.
+    const inp = app.querySelector('.clubslot');
+    if (inp) {
+      const box = document.getElementById('clubsugg');
+      inp.oninput = () => {
+        const t = inp.value.trim().toLowerCase();
+        const hits = t ? more.filter(c => c.label.toLowerCase().includes(t)).slice(0, 7) : [];
+        if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+        box.hidden = false;
+        box.innerHTML = hits.map(c =>
+          `<button class="sg" data-k="${esc(c.key)}"><span class="n">${esc(c.label)}</span></button>`).join('');
+        box.querySelectorAll('.sg').forEach(x => x.onclick = () => { chosen.push(x.dataset.k); draw(); });
+      };
+      inp.onkeydown = (e) => {
+        if (e.key !== 'Enter') return;
+        const f = box.querySelector('.sg'); if (f) f.click();
+      };
+      if (picked.length) inp.focus();
+    }
+
     document.getElementById('go').onclick = () => {
       let board;
       if (mode === 'random') {
-        board = PFB.generate(DB, mulberry32((Math.random()*2**32)>>>0), n);
+        board = PFB.generate(DB, mulberry32((Math.random() * 2 ** 32) >>> 0), n);
         if (!board) return alert('No playable board for that many clubs — try again.');
       } else {
-        const sides = chosen.map(k => clubs.find(c=>c.key===k));
+        const sides = picked.map(k => clubs.find(c => c.key === k));
         board = PFB.build(DB, sides);
-        if (board.count < 1) {
-          // manual picks can have no overlap at all; say so instead of
-          // dropping the player into an unwinnable board
-          return playPFBEmpty(sides);
-        }
+        if (board.count < 1) return playPFBEmpty(sides);
       }
       PB = PFB.createGame(board);
       playPFB();
@@ -305,6 +351,25 @@ function playPFBEmpty(sides) {
   document.getElementById('again').onclick = setupPFB;
 }
 
+// Appearances for each side, so the reveal actually teaches you something
+// rather than just listing names you did not get.
+function slotRow(id, cls) {
+  const p = DB.byId.get(id), b = PB.board;
+  // On a two-club board the heading already names the sides in order, so bare
+  // numbers read fine and keep the player's name on one line. With three or
+  // more, label them - the order is no longer obvious at a glance.
+  const bare = b.sides.length === 2;
+  const bits = b.sides
+    .map(s => {
+      const f = PFB.figureFor(DB, p, s);
+      if (!f) return bare ? '\u2013' : null;
+      return bare ? f : `${shortClub(s.label)} ${f}`;
+    })
+    .filter(Boolean);
+  return `<div class="slot ${cls}"><span>${esc(p.name)}</span>` +
+         (bits.length ? `<span class="fig">${esc(bits.join(' \u00b7 '))}</span>` : '') + `</div>`;
+}
+
 function playPFB(msg = null, tone = '') {
   const b = PB.board, done = PB.finished;
   const found = b.answerIds.filter(id => PB.found.has(id));
@@ -321,10 +386,8 @@ function playPFB(msg = null, tone = '') {
     <div class="tag" style="margin-bottom:18px">
       ${show ? `${b.count} players` : '? players'} · ${PB.found.size} found</div>
     <div class="slots">
-      ${found.map(id=>`<div class="slot on">${esc(DB.byId.get(id).name)}</div>`).join('')}
-      ${show ? missing.map(id=> done
-          ? `<div class="slot miss">${esc(DB.byId.get(id).name)}</div>`
-          : `<div class="slot"></div>`).join('') : ''}
+      ${found.map(id => slotRow(id, 'on')).join('')}
+      ${show ? missing.map(id => done ? slotRow(id, 'miss') : `<div class="slot"></div>`).join('') : ''}
     </div>
     ${done ? `
       <div class="fb"><div class="h ${cleared?'ok':'no'}">
