@@ -190,6 +190,35 @@ A name we do not hold is a gap in our data, not a bad guess, so it never costs
 a life. Club prominence is measured by how many well-known players a club has,
 not the squad average — averaging punishes big clubs for having deep squads.
 
+## Guarding against lost facts
+
+The bug that hid Demba Ba's West Ham spell was not a wrong number, it was a
+missing fact, and the existing checks could not see it: they looked for clubs
+we wrongly claimed and never for clubs we had silently lost.
+
+Two root causes, both now fixed at the source:
+
+1. **A display filter had leaked into the fact layer.** `clubs` is filtered to
+   spells of 15+ appearances so career paths stay readable; `allClubs` is
+   unfiltered and is what every membership check reads. 10,660 player-club
+   links were hidden by the old shared filter, across 73% of players -
+   Salah at Chelsea, Pique at Manchester United, Eto'o at Everton.
+2. **A missing statistic was read as a zero.** De Bruyne's Manchester City
+   spell has no appearance figure upstream, so it was dropped from his career
+   path entirely. Absence of a statistic is not absence of a spell; only a
+   spell we can SEE is small gets filtered now.
+
+`ingest/test_membership.mjs` pins both, and asserts in the direction the old
+checks missed:
+
+- every displayed club is also a known club (a filter cannot leak back)
+- no published player has empty membership
+- a fixture list of real short spells must resolve, through the club index the
+  games actually query, not just the player record
+- a spell with no appearance figure still reaches the career path
+
+`./run-tests.sh` runs every suite; run it after any ingestion change.
+
 ## Question generation
 
 `app/js/engine/` holds one file per mode, each a pure function of

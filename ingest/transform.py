@@ -129,9 +129,14 @@ for pid, p in players.items():
             rejected["too few career apps"] += 1; continue
 
     # keep meaningful, dated spells; order them; collapse consecutive repeats
+    # A missing appearance figure is not evidence of a trivial spell. Treating
+    # None as zero dropped De Bruyne's Manchester City, Pique's Manchester
+    # United and Salah's Chelsea from their career paths entirely, because
+    # Wikidata records no apps for those spells. Only a spell we can SEE is
+    # small gets filtered; an unknown one is kept.
     keep = [s for s in raw
             if s["start"] and not RESERVE_RE.search(s["club"] or "")
-            and ((s["apps"] or 0) >= MIN_SPELL_APPS or no_stats)]
+            and (s["apps"] is None or s["apps"] >= MIN_SPELL_APPS or no_stats)]
     keep.sort(key=lambda s: (s["start"], s["end"] or s["start"]))
     # Wikidata often carries SEVERAL statements for one spell at a club - one
     # counting league games, another all competitions. Summing them double-counts
