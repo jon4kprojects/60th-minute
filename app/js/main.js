@@ -285,9 +285,9 @@ function setupPFB() {
         }</div>` : ''}`}
 
       <button class="btn" id="go" ${mode === 'pick' && picked.length < 2 ? 'disabled' : ''}>
-        ${mode === 'random' ? 'Deal a board'
+        ${mode === 'random' ? 'Play'
           : picked.length < 2 ? `Pick ${2 - picked.length} more`
-          : `Start · ${picked.length} clubs`}</button>
+          : `Play · ${picked.length} clubs`}</button>
     </div>`));
 
     document.getElementById('back').onclick = home;
