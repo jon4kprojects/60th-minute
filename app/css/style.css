@@ -191,3 +191,11 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .slot{justify-content:space-between;gap:12px}
 .slot .fig{color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
 .slot.on .fig{color:var(--amber)}
+
+.install{margin-top:16px;padding:16px;border-radius:14px;border:1px solid var(--line-warm);
+  background:linear-gradient(180deg,#1b1209,#141017)}
+.install .t{font-weight:700;font-size:15px;margin-bottom:4px}
+.install .d{color:var(--muted);font-size:13px;line-height:1.5}
+.install .d b{color:var(--fg)}
+.install .btn{margin-top:12px}
+.install .x{display:block;margin-top:10px;color:var(--muted);font-size:12px}

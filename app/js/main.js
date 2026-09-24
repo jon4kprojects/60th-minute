@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b23.8512060';
+const BUILD = 'b24.82aefeb';
 const app = document.getElementById('app');
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
@@ -13,17 +13,45 @@ const today = () => new Date().toISOString().slice(0, 10);
 const shortClub = (n) => n.replace(/\s+(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)$/i,'')
   .replace(/^(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)\s+/i,'').replace(/\s+Club de Fútbol$/i,'').trim();
 
+// Installing is the one step friends get stuck on, and it differs by phone:
+// on iPhone only Safari can add to the home screen, and the option is buried
+// in the Share sheet. Chrome and Android offer a real install prompt instead.
+const platform = () => {
+  const ua = navigator.userAgent;
+  const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios) return /CriOS|FxiOS|EdgiOS/.test(ua) ? 'ios-other' : 'ios-safari';
+  return 'other';
+};
+const installed = () =>
+  window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+
 const store = {
   get best() { try { return +localStorage.getItem('best') || 0; } catch { return 0; } },
   set best(v) { try { localStorage.setItem('best', v); } catch {} },
   doneToday() { try { return localStorage.getItem('daily') === today(); } catch { return false; } },
   markToday() { try { localStorage.setItem('daily', today()); } catch {} },
+  get hideInstall() { try { return localStorage.getItem('noinstall') === '1'; } catch { return false; } },
+  set hideInstall(v) { try { localStorage.setItem('noinstall', v ? '1' : ''); } catch {} },
 };
 
 let DB = null, NAMES = null, S = null, G = null;
 
+// Installed to a home screen there is no browser back button, and on Android
+// the hardware one would otherwise quit the app from the first screen you open.
+// Each screen pushes a history entry so Back steps home instead of exiting.
+let atHome = true;
+function enterScreen() {
+  if (atHome) { try { history.pushState({ m60: 1 }, ''); } catch {} }
+  atHome = false;
+}
+window.addEventListener('popstate', () => { if (!atHome) home(); });
+
 /* ---------------- home ---------------- */
 function home() {
+  atHome = true;
   const offline = navigator.serviceWorker?.controller;
   app.innerHTML = '';
   app.append(el(`<div>
@@ -41,8 +69,18 @@ function home() {
       <div class="b">10 questions · same for everyone today</div></button>
     <div class="spacer"></div>
     <div class="badge ${offline ? 'on' : ''}"><i class="dot"></i>${offline ? 'Offline ready' : 'Caching…'}</div>
+    ${installHint()}
     ${store.best ? `<div class="tag" style="margin-top:10px">Best score ${store.best}</div>` : ''}
   </div>`));
+  const hide = document.getElementById('hideinstall');
+  if (hide) hide.onclick = () => { store.hideInstall = true; home(); };
+  const doInstall = document.getElementById('doinstall');
+  if (doInstall) doInstall.onclick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null; home();
+  };
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const g = b.dataset.go;
     if (g === 'f501') return setup501();
@@ -51,8 +89,25 @@ function home() {
   });
 }
 
+function installHint() {
+  if (installed() || store.hideInstall) return '';
+  const p = platform();
+  const how = p === 'ios-safari'
+    ? 'Tap <b>Share</b>, then <b>Add to Home Screen</b>.'
+    : p === 'ios-other'
+      ? 'Open this page in <b>Safari</b>, then Share \u2192 <b>Add to Home Screen</b>. Only Safari can install it on iPhone.'
+      : 'Tap the menu, then <b>Install app</b> \u2014 or use the button below.';
+  return `<div class="install">
+    <div class="t">Put it on your home screen</div>
+    <div class="d">${how} It then works with no signal at all.</div>
+    ${p === 'other' && deferredPrompt ? '<button class="btn" id="doinstall">Install</button>' : ''}
+    <button class="x" id="hideinstall">Not now</button>
+  </div>`;
+}
+
 /* ---------------- Football 501 ---------------- */
 function setup501() {
+  enterScreen();
   const clubs = F501.clubsWithDepth(DB, 15).slice()
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
@@ -236,6 +291,7 @@ function play501(msg = null, tone = '') {
 let PB = null;
 
 function setupPFB() {
+  enterScreen();
   const clubs = PFB.clubChoices(DB);
   let mode = 'random', n = 2, chosen = [];
 
@@ -452,6 +508,7 @@ function playPFB(msg = null, tone = '') {
 
 /* ---------------- question modes ---------------- */
 function start(mode) {
+  enterScreen();
   const daily = mode === 'daily';
   const rnd = mulberry32(daily ? seedFrom('daily-' + today()) : (Math.random() * 2 ** 32) >>> 0);
   const keys = daily ? Object.keys(MODES) : [mode];
