@@ -44,7 +44,7 @@ function home() {
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const g = b.dataset.go;
     if (g === 'f501') return setup501();
-    if (g === 'pfb') return startPFB();
+    if (g === 'pfb') return setupPFB();
     start(g);
   });
 }
@@ -169,11 +169,73 @@ function play501(msg = null, tone = '') {
 /* ---------------- Played for Both ---------------- */
 let PB = null;
 
-function startPFB() {
-  const board = PFB.generate(DB, mulberry32((Math.random() * 2 ** 32) >>> 0));
-  if (!board) { app.innerHTML = '<div class="loading">Could not build a board.</div>'; return; }
-  PB = PFB.createGame(board);
-  playPFB();
+function setupPFB() {
+  const clubs = PFB.clubChoices(DB);
+  let mode = 'random', n = 2, chosen = [];
+  const draw = () => {
+    app.innerHTML = '';
+    app.append(el(`<div>
+      <div class="bar"><button class="back" id="back">‹ Back</button></div>
+      <div class="kicker">Played for Both</div>
+      <h1 style="font-size:30px">Clear the <em>board</em></h1>
+      <div class="tag">Name every player who turned out for at least two of the
+        chosen sides. Three lives.</div>
+      <label>Clubs</label>
+      <div class="chips" id="mode">
+        <button class="chip ${mode==='random'?'on':''}" data-m="random">Random</button>
+        <button class="chip ${mode==='pick'?'on':''}" data-m="pick">Choose my own</button>
+      </div>
+      ${mode==='random' ? `
+        <label>How many</label>
+        <div class="chips" id="n">${[2,3,4,5].map(i=>
+          `<button class="chip ${i===n?'on':''}" data-n="${i}">${i}</button>`).join('')}</div>`
+      : `
+        <label>Pick 2–${PFB.MAX_SIDES} (${chosen.length} chosen)</label>
+        <div class="picklist">${clubs.map(c=>
+          `<button class="pk ${chosen.includes(c.key)?'on':''}" data-k="${esc(c.key)}">${esc(c.label)}</button>`).join('')}</div>`}
+      <button class="btn" id="go" ${mode==='pick' && (chosen.length<2||chosen.length>PFB.MAX_SIDES)?'disabled':''}>
+        ${mode==='random'?'Deal a board':'Start'}</button>
+    </div>`));
+    document.getElementById('back').onclick = home;
+    app.querySelectorAll('#mode .chip').forEach(c=>c.onclick=()=>{mode=c.dataset.m;draw();});
+    app.querySelectorAll('#n .chip').forEach(c=>c.onclick=()=>{n=+c.dataset.n;draw();});
+    app.querySelectorAll('.pk').forEach(b=>b.onclick=()=>{
+      const k=b.dataset.k;
+      if (chosen.includes(k)) chosen = chosen.filter(x=>x!==k);
+      else if (chosen.length < PFB.MAX_SIDES) chosen.push(k);
+      draw();
+    });
+    document.getElementById('go').onclick = () => {
+      let board;
+      if (mode === 'random') {
+        board = PFB.generate(DB, mulberry32((Math.random()*2**32)>>>0), n);
+        if (!board) return alert('No playable board for that many clubs — try again.');
+      } else {
+        const sides = chosen.map(k => clubs.find(c=>c.key===k));
+        board = PFB.build(DB, sides);
+        if (board.count < 1) {
+          // manual picks can have no overlap at all; say so instead of
+          // dropping the player into an unwinnable board
+          return playPFBEmpty(sides);
+        }
+      }
+      PB = PFB.createGame(board);
+      playPFB();
+    };
+  };
+  draw();
+}
+
+function playPFBEmpty(sides) {
+  app.innerHTML = '';
+  app.append(el(`<div>
+    <div class="bar"><button class="back" id="back">‹ Back</button></div>
+    <div class="vsbig">${sides.map(s=>`<span>${esc(s.label)}</span>`).join('<i>×</i>')}</div>
+    <div class="fb"><div class="h no">No shared players</div>
+      <div class="d">Nobody in our data turned out for two of these. Pick a different set.</div></div>
+    <button class="btn" id="again">Choose again</button></div>`));
+  document.getElementById('back').onclick = home;
+  document.getElementById('again').onclick = setupPFB;
 }
 
 function playPFB(msg = null, tone = '') {
@@ -181,24 +243,26 @@ function playPFB(msg = null, tone = '') {
   const found = b.answerIds.filter(id => PB.found.has(id));
   const missing = b.answerIds.filter(id => !PB.found.has(id));
   const cleared = PB.found.size === b.count;
+  const show = PB.countShown || done;
 
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button>
-      <div class="prog"><i style="width:${(PB.found.size / b.count) * 100}%"></i></div>
-      <span class="lives">${'●'.repeat(Math.max(0, PB.lives))}${'○'.repeat(PFB.LIVES - Math.max(0, PB.lives))}</span></div>
-    <div class="vsbig"><span>${esc(b.left.label)}</span><i>×</i><span>${esc(b.right.label)}</span></div>
-    <div class="tag" style="margin-bottom:18px">${b.count} players · ${PB.found.size} found</div>
+      <div class="prog"><i style="width:${show ? (PB.found.size/b.count)*100 : 0}%"></i></div>
+      <span class="lives">${'●'.repeat(Math.max(0,PB.lives))}${'○'.repeat(PFB.LIVES-Math.max(0,PB.lives))}</span></div>
+    <div class="vsbig">${b.sides.map(s=>`<span>${esc(s.label)}</span>`).join('<i>×</i>')}</div>
+    <div class="tag" style="margin-bottom:18px">
+      ${show ? `${b.count} players` : '? players'} · ${PB.found.size} found</div>
     <div class="slots">
-      ${found.map(id => `<div class="slot on">${esc(DB.byId.get(id).name)}</div>`).join('')}
-      ${missing.map(id => done
-        ? `<div class="slot miss">${esc(DB.byId.get(id).name)}</div>`
-        : `<div class="slot"></div>`).join('')}
+      ${found.map(id=>`<div class="slot on">${esc(DB.byId.get(id).name)}</div>`).join('')}
+      ${show ? missing.map(id=> done
+          ? `<div class="slot miss">${esc(DB.byId.get(id).name)}</div>`
+          : `<div class="slot"></div>`).join('') : ''}
     </div>
     ${done ? `
-      <div class="fb"><div class="h ${cleared ? 'ok' : 'no'}">
-        ${cleared ? 'Board cleared!' : PB.gaveUp ? 'Here they are' : 'Out of lives'}</div>
-        <div class="d">${PB.found.size} of ${b.count} found${PB.wrong.length ? ' · missed with ' + esc(PB.wrong.join(', ')) : ''}</div></div>
+      <div class="fb"><div class="h ${cleared?'ok':'no'}">
+        ${cleared?'Board cleared!':PB.gaveUp?'Here they are':'Out of lives'}</div>
+        <div class="d">${PB.found.size} of ${b.count} found${PB.wrong.length?' · missed with '+esc(PB.wrong.join(', ')):''}</div></div>
       <button class="btn" id="again">New board</button>
       <button class="btn ghost" id="home2">Home</button>`
     : `
@@ -206,50 +270,52 @@ function playPFB(msg = null, tone = '') {
         autocapitalize="words" autocorrect="off" spellcheck="false"
         ><button class="btn" id="submit">Add</button></div>
       <div class="sugg" id="sugg" hidden></div>
-      ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}
+      ${msg?`<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>`:''}
+      ${PB.countShown?'':`<button class="btn ghost" id="reveal">Clue: how many are there?</button>`}
       <button class="btn ghost" id="giveup">Give up</button>`}
   </div>`));
 
   document.getElementById('back').onclick = home;
-  const ag = document.getElementById('again'); if (ag) ag.onclick = startPFB;
-  const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
-  const gu = document.getElementById('giveup');
-  if (gu) gu.onclick = () => { PB.gaveUp = true; PB.finished = true; playPFB(); };
+  const ag=document.getElementById('again'); if(ag) ag.onclick=setupPFB;
+  const h2=document.getElementById('home2'); if(h2) h2.onclick=home;
+  const rv=document.getElementById('reveal');
+  if(rv) rv.onclick=()=>{ PB.countShown=true; playPFB(msg,tone); };
+  const gu=document.getElementById('giveup');
+  if(gu) gu.onclick=()=>{ PB.gaveUp=true; PB.finished=true; playPFB(); };
 
-  const inp = document.getElementById('guess');
-  if (!inp) return;
-  const sub = document.getElementById('submit'), box = document.getElementById('sugg');
-  let list = [], hi = -1;
-  const paint = () => {
-    if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
-    box.hidden = false;
-    box.innerHTML = list.map((p, i) => `
-      <button class="sg ${i === hi ? 'on' : ''}" data-i="${i}">
+  const inp=document.getElementById('guess');
+  if(!inp) return;
+  const sub=document.getElementById('submit'), box=document.getElementById('sugg');
+  let list=[], hi=-1;
+  const paint=()=>{
+    if(!list.length){box.hidden=true;box.innerHTML='';return;}
+    box.hidden=false;
+    box.innerHTML=list.map((p,i)=>`
+      <button class="sg ${i===hi?'on':''}" data-i="${i}">
         <span class="n">${esc(p.name)}</span>
-        <span class="m">${esc([p.nationality, p.position].filter(Boolean).join(' · '))}</span>
+        <span class="m">${esc([p.nationality,p.position].filter(Boolean).join(' · '))}</span>
       </button>`).join('');
-    box.querySelectorAll('.sg').forEach(x => x.onclick = () => {
-      inp.value = list[x.dataset.i].name; list = []; hi = -1; paint(); inp.focus();
+    box.querySelectorAll('.sg').forEach(x=>x.onclick=()=>{
+      inp.value=list[x.dataset.i].name; list=[];hi=-1;paint();inp.focus();
     });
   };
-  const go = () => {
-    const v = inp.value.trim(); if (!v) return;
-    const r = PFB.guess(DB, NAMES, PB, v);
-    PFB.apply(PB, r);
-    playPFB(PFB.explain(r, PB.board), r.status === 'hit' ? 'ok' : r.status === 'already' ? '' : 'no');
+  const go=()=>{
+    const v=inp.value.trim(); if(!v) return;
+    const r=PFB.guess(DB,NAMES,PB,v);
+    PFB.apply(PB,r);
+    playPFB(PFB.explain(r), r.status==='hit'?'ok':r.status==='already'?'':'no');
   };
-  inp.oninput = () => { list = suggest(NAMES, inp.value, 6); hi = -1; paint(); };
-  inp.onkeydown = (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      if (!list.length) return; e.preventDefault();
-      hi = e.key === 'ArrowDown' ? (hi + 1) % list.length : (hi - 1 + list.length) % list.length;
-      paint();
-    } else if (e.key === 'Enter') {
-      if (hi >= 0 && list[hi]) { inp.value = list[hi].name; list = []; hi = -1; paint(); return; }
+  inp.oninput=()=>{list=suggest(NAMES,inp.value,6);hi=-1;paint();};
+  inp.onkeydown=(e)=>{
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      if(!list.length)return; e.preventDefault();
+      hi=e.key==='ArrowDown'?(hi+1)%list.length:(hi-1+list.length)%list.length; paint();
+    } else if(e.key==='Enter'){
+      if(hi>=0&&list[hi]){inp.value=list[hi].name;list=[];hi=-1;paint();return;}
       go();
-    } else if (e.key === 'Escape') { list = []; hi = -1; paint(); }
+    } else if(e.key==='Escape'){list=[];hi=-1;paint();}
   };
-  sub.onclick = go;
+  sub.onclick=go;
   inp.focus();
 }
 

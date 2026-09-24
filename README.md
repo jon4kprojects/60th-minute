@@ -95,10 +95,19 @@ whom score under 180.
 
 ## Played for Both
 
-Two sides are shown with a count — `ARSENAL × CHELSEA · 13 players` — and you
-name everyone who turned out for each. Club × club and country × club both
-work; the country side reads nationality, so `NETHERLANDS × AC MILAN` gives
-van Basten, Gullit, Rijkaard and Seedorf.
+Pick 2-5 sides, at random or by hand, and name everyone who turned out for
+**at least two of them**. Club and country both work as sides, so
+`NETHERLANDS × AC MILAN` gives van Basten, Gullit, Rijkaard and Seedorf.
+
+"At least two" rather than "all of them" is not a softening. A player who
+turned out for four *specific* top clubs barely exists: zero random 4-club
+combinations in 60,000 draws shared a single player, and 3 clubs worked 0.3%
+of the time. At two sides the rule is identical to "played for both", and it
+is what lets the mode reach five. Hit rates on the working rule: 3 clubs 71%,
+4 clubs 56%, 5 clubs 18%.
+
+The count is hidden by default and offered as a clue ("how many are there?"),
+which turns the opening from "clear the board" into "is there anyone left?".
 
 **The count is our count, not football's.** That is the one thing that could
 lose trust in this mode, so feedback is honest about which kind of miss it was:
