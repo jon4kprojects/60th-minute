@@ -1,0 +1,78 @@
+/* Dark + high contrast: readable in bright sun, easy on an OLED battery.
+   No webfonts - everything must work with no network at all. */
+:root{
+  --bg:#0b0f14; --card:#151b23; --card2:#1c242e; --line:#2a3440;
+  --fg:#f2f6fa; --muted:#8fa0b3; --accent:#3ddc84; --accent-dim:#1c7a4a;
+  --wrong:#ff5c5c; --amber:#ffc14d;
+  --pad:16px; --r:14px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);overscroll-behavior:none;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.app{max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:var(--pad)}
+.loading{margin:auto;color:var(--muted)}
+
+h1{font-size:30px;letter-spacing:-.5px;margin:8px 0 2px}
+.tag{color:var(--muted);font-size:14px;margin-bottom:22px}
+.spacer{flex:1}
+
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.card{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px;margin-bottom:10px;transition:transform .08s,border-color .15s}
+.card:active{transform:scale(.985)}
+.card .t{font-size:18px;font-weight:650}
+.card .b{color:var(--muted);font-size:13px;margin-top:3px}
+
+.bar{display:flex;align-items:center;gap:12px;margin-bottom:18px;font-size:13px;color:var(--muted)}
+.bar .back{color:var(--muted);padding:4px 2px}
+.prog{flex:1;height:4px;background:var(--card2);border-radius:99px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.score{font-variant-numeric:tabular-nums;color:var(--fg);font-weight:650}
+.streak{color:var(--amber)}
+
+.q{font-size:22px;font-weight:650;line-height:1.25;margin:0 0 4px}
+.scope{color:var(--muted);font-size:13px;margin-bottom:18px}
+
+.path{list-style:none;padding:0;margin:0 0 20px}
+.path li{display:flex;align-items:baseline;gap:10px;padding:11px 14px;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:17px;font-weight:600}
+.path li .yr{margin-left:auto;color:var(--muted);font-size:13px;font-weight:400;font-variant-numeric:tabular-nums}
+.path li .ar{color:var(--accent-dim);font-size:13px}
+
+.clues{list-style:none;padding:0;margin:0 0 18px}
+.clues li{padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:10px;
+  margin-bottom:6px;font-size:16px;animation:in .25s ease}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+.opts{display:grid;gap:8px}
+.opt{background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:15px;font-size:17px;font-weight:600}
+.opt .sub{display:block;color:var(--muted);font-size:12px;font-weight:400;margin-top:3px}
+.opt.right{border-color:var(--accent);background:#14301f}
+.opt.wrong{border-color:var(--wrong);background:#2e1618}
+.opt.dim{opacity:.45}
+.opt .val{float:right;color:var(--accent);font-variant-numeric:tabular-nums}
+
+.hl{display:grid;gap:10px}
+.vs{text-align:center;color:var(--muted);font-size:12px;letter-spacing:2px}
+
+.fb{margin-top:16px;padding:14px;border-radius:12px;background:var(--card2);border:1px solid var(--line)}
+.fb .h{font-weight:700;margin-bottom:4px}
+.fb .h.ok{color:var(--accent)} .fb .h.no{color:var(--wrong)}
+.fb .d{color:var(--muted);font-size:14px;line-height:1.45}
+
+.btn{display:block;width:100%;background:var(--accent);color:#04160c;font-weight:700;font-size:17px;
+  padding:16px;border-radius:12px;margin-top:14px;text-align:center}
+.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--fg)}
+
+.big{font-size:56px;font-weight:750;text-align:center;margin:26px 0 2px;font-variant-numeric:tabular-nums}
+.big-sub{text-align:center;color:var(--muted);margin-bottom:26px}
+.rows{margin:0 0 18px}
+.row{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);font-size:15px}
+.row .k{color:var(--muted)}
+
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);
+  border:1px solid var(--line);border-radius:99px;padding:5px 11px;margin-top:14px}
+.badge.on{color:var(--accent);border-color:var(--accent-dim)}
+.dot{width:6px;height:6px;border-radius:99px;background:currentColor}

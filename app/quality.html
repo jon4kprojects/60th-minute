@@ -1,0 +1,73 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dataset quality</title>
+<style>
+body{background:#0b0f14;color:#f2f6fa;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  margin:0;padding:24px;max-width:900px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px} .sub{color:#8fa0b3;margin-bottom:24px}
+h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:#8fa0b3;margin:28px 0 8px}
+table{width:100%;border-collapse:collapse} td{padding:7px 0;border-bottom:1px solid #2a3440}
+td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:8px}
+.stat{background:#151b23;border:1px solid #2a3440;border-radius:10px;padding:14px}
+.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.stat span{color:#8fa0b3;font-size:12px}
+.bar{height:6px;background:#1c242e;border-radius:9px;overflow:hidden;margin-top:3px}
+.bar i{display:block;height:100%;background:#3ddc84}
+.warn{color:#ffc14d}
+</style></head><body>
+<h1>Dataset quality</h1><div class="sub">Is the data good enough to generate questions people will trust?</div>
+<div id="out">Loading…</div>
+<script type="module">
+const d = await (await fetch('./data/dataset.json')).json();
+const P = d.players, n = P.length;
+const clubs = new Set(), spells = P.reduce((a,p)=>a+p.clubs.length,0);
+P.forEach(p=>p.clubs.forEach(c=>clubs.add(c.club)));
+const miss = f => P.filter(p=>!p[f]).length;
+const decade = p => { const y=p.clubs.map(c=>c.from).filter(Boolean); return y.length?Math.floor(Math.min(...y)/10)*10:null; };
+const by = fn => P.reduce((a,p)=>{const k=fn(p); if(k!=null)a[k]=(a[k]||0)+1; return a;},{});
+const pct = v => ((v/n)*100).toFixed(1)+'%';
+
+// duplicate detection: same name, or an identical club sequence (which would
+// make a Career Path question ambiguous)
+const nameCount={}, seqCount={};
+P.forEach(p=>{ nameCount[p.name]=(nameCount[p.name]||0)+1;
+  const k=p.clubs.map(c=>c.club).join('>'); seqCount[k]=(seqCount[k]||0)+1; });
+const dupNames=Object.entries(nameCount).filter(([,c])=>c>1);
+const dupSeq=Object.entries(seqCount).filter(([,c])=>c>1);
+
+const row=(k,v,extra='')=>`<tr><td>${k}</td><td class="${extra}">${v}</td></tr>`;
+const tbl=o=>`<table>${Object.entries(o).sort((a,b)=>a[0]<b[0]?-1:1)
+  .map(([k,v])=>`<tr><td>${k}</td><td>${v.toLocaleString()}<div class="bar"><i style="width:${(v/Math.max(...Object.values(o)))*100}%"></i></div></td></tr>`).join('')}</table>`;
+
+document.getElementById('out').innerHTML = `
+<div class="grid">
+  <div class="stat"><b>${n.toLocaleString()}</b><span>players</span></div>
+  <div class="stat"><b>${clubs.size.toLocaleString()}</b><span>clubs</span></div>
+  <div class="stat"><b>${spells.toLocaleString()}</b><span>club spells</span></div>
+  <div class="stat"><b>${(spells/n).toFixed(1)}</b><span>clubs per player</span></div>
+</div>
+<h2>Completeness</h2><table>
+${row('Missing nationality', `${miss('nationality')} (${pct(miss('nationality'))})`, miss('nationality')/n>0.1?'warn':'')}
+${row('Missing position',    `${miss('position')} (${pct(miss('position'))})`)}
+${row('Missing birth year',  `${miss('born')} (${pct(miss('born'))})`)}
+${row('No career goals',     `${P.filter(p=>!p.careerGoals).length}`)}
+${row('Fewer than 3 clubs',  `${P.filter(p=>p.clubs.length<3).length}`)}
+${row('Spells missing a year', P.reduce((a,p)=>a+p.clubs.filter(c=>!c.from).length,0))}
+</table>
+<h2>Ambiguity risks</h2><table>
+${row('Duplicate player names', dupNames.length, dupNames.length?'warn':'')}
+${row('Identical club sequences', dupSeq.length, dupSeq.length?'warn':'')}
+<tr><td colspan="2" style="color:#8fa0b3;font-size:12px;border:0;padding-top:6px">
+Career Path rejects any sequence shared by more than one player, so these are excluded rather than shown.</td></tr>
+</table>
+<h2>Coverage by decade career started</h2>${tbl(by(decade))}
+<h2>Coverage by nationality (top 15)</h2>
+<table>${Object.entries(by(p=>p.nationality)).sort((a,b)=>b[1]-a[1]).slice(0,15)
+  .map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>
+<h2>Fame tiers (drives difficulty + decoy matching)</h2><table>
+${row('Tier 0 — household names (75+ wikis)', P.filter(p=>p.fame>=75).length)}
+${row('Tier 1 — well known (55–74)',          P.filter(p=>p.fame>=55&&p.fame<75).length)}
+${row('Tier 2 — for the keen (under 55)',     P.filter(p=>p.fame<55).length)}
+</table>`;
+</script></body></html>
