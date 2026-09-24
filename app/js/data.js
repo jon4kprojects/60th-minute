@@ -21,6 +21,24 @@ export async function loadData() {
       return y.length ? Math.floor(Math.min(...y) / 10) * 10 : null;
     },
   };
+  // indexes for Played for Both
+  DB.byClub = new Map();
+  DB.byNation = new Map();
+  for (const p of players) {
+    for (const c of p.clubs) {
+      if (!DB.byClub.has(c.club)) DB.byClub.set(c.club, new Set());
+      DB.byClub.get(c.club).add(p.id);
+    }
+    if (p.nationality) {
+      if (!DB.byNation.has(p.nationality)) DB.byNation.set(p.nationality, new Set());
+      DB.byNation.get(p.nationality).add(p.id);
+    }
+  }
+  // A club's prominence is how many well-known players it has, not the squad
+  // average - averaging punishes big clubs for having deep squads.
+  const known = (set) => [...set].filter(id => DB.byId.get(id).fame >= 60).length;
+  DB.clubProm = new Map([...DB.byClub].map(([c, s]) => [c, known(s)]));
+  DB.natProm = new Map([...DB.byNation].map(([c, s]) => [c, known(s)]));
   return DB;
 }
 

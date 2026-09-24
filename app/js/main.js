@@ -3,6 +3,7 @@ import { MODES, buildRound } from './engine/index.js';
 import { mulberry32, seedFrom } from './rng.js';
 import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
+import * as PFB from './engine/playedForBoth.js';
 
 const app = document.getElementById('app');
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
@@ -29,6 +30,8 @@ function home() {
     <div class="tag">${DB.players.length.toLocaleString()} players · 1940s to today</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
+    <button class="card hot" data-go="pfb">
+      <div class="t">Played for Both</div><div class="b">Clear the board · name every shared player</div></button>
     ${Object.entries(MODES).map(([k, m]) => `
       <button class="card" data-go="${k}"><div class="t">${m.title}</div><div class="b">${m.blurb}</div></button>`).join('')}
     <button class="card" data-go="daily">
@@ -40,7 +43,9 @@ function home() {
   </div>`));
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const g = b.dataset.go;
-    if (g === 'f501') return setup501(); else start(g);
+    if (g === 'f501') return setup501();
+    if (g === 'pfb') return startPFB();
+    start(g);
   });
 }
 
@@ -159,6 +164,93 @@ function play501(msg = null, tone = '') {
     sub.onclick = go;
     inp.focus();
   }
+}
+
+/* ---------------- Played for Both ---------------- */
+let PB = null;
+
+function startPFB() {
+  const board = PFB.generate(DB, mulberry32((Math.random() * 2 ** 32) >>> 0));
+  if (!board) { app.innerHTML = '<div class="loading">Could not build a board.</div>'; return; }
+  PB = PFB.createGame(board);
+  playPFB();
+}
+
+function playPFB(msg = null, tone = '') {
+  const b = PB.board, done = PB.finished;
+  const found = b.answerIds.filter(id => PB.found.has(id));
+  const missing = b.answerIds.filter(id => !PB.found.has(id));
+  const cleared = PB.found.size === b.count;
+
+  app.innerHTML = '';
+  app.append(el(`<div>
+    <div class="bar"><button class="back" id="back">‹ Back</button>
+      <div class="prog"><i style="width:${(PB.found.size / b.count) * 100}%"></i></div>
+      <span class="lives">${'●'.repeat(Math.max(0, PB.lives))}${'○'.repeat(PFB.LIVES - Math.max(0, PB.lives))}</span></div>
+    <div class="vsbig"><span>${esc(b.left.label)}</span><i>×</i><span>${esc(b.right.label)}</span></div>
+    <div class="tag" style="margin-bottom:18px">${b.count} players · ${PB.found.size} found</div>
+    <div class="slots">
+      ${found.map(id => `<div class="slot on">${esc(DB.byId.get(id).name)}</div>`).join('')}
+      ${missing.map(id => done
+        ? `<div class="slot miss">${esc(DB.byId.get(id).name)}</div>`
+        : `<div class="slot"></div>`).join('')}
+    </div>
+    ${done ? `
+      <div class="fb"><div class="h ${cleared ? 'ok' : 'no'}">
+        ${cleared ? 'Board cleared!' : PB.gaveUp ? 'Here they are' : 'Out of lives'}</div>
+        <div class="d">${PB.found.size} of ${b.count} found${PB.wrong.length ? ' · missed with ' + esc(PB.wrong.join(', ')) : ''}</div></div>
+      <button class="btn" id="again">New board</button>
+      <button class="btn ghost" id="home2">Home</button>`
+    : `
+      <div class="entry"><input id="guess" placeholder="Name a player" autocomplete="off"
+        autocapitalize="words" autocorrect="off" spellcheck="false"
+        ><button class="btn" id="submit">Add</button></div>
+      <div class="sugg" id="sugg" hidden></div>
+      ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}
+      <button class="btn ghost" id="giveup">Give up</button>`}
+  </div>`));
+
+  document.getElementById('back').onclick = home;
+  const ag = document.getElementById('again'); if (ag) ag.onclick = startPFB;
+  const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
+  const gu = document.getElementById('giveup');
+  if (gu) gu.onclick = () => { PB.gaveUp = true; PB.finished = true; playPFB(); };
+
+  const inp = document.getElementById('guess');
+  if (!inp) return;
+  const sub = document.getElementById('submit'), box = document.getElementById('sugg');
+  let list = [], hi = -1;
+  const paint = () => {
+    if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = list.map((p, i) => `
+      <button class="sg ${i === hi ? 'on' : ''}" data-i="${i}">
+        <span class="n">${esc(p.name)}</span>
+        <span class="m">${esc([p.nationality, p.position].filter(Boolean).join(' · '))}</span>
+      </button>`).join('');
+    box.querySelectorAll('.sg').forEach(x => x.onclick = () => {
+      inp.value = list[x.dataset.i].name; list = []; hi = -1; paint(); inp.focus();
+    });
+  };
+  const go = () => {
+    const v = inp.value.trim(); if (!v) return;
+    const r = PFB.guess(DB, NAMES, PB, v);
+    PFB.apply(PB, r);
+    playPFB(PFB.explain(r, PB.board), r.status === 'hit' ? 'ok' : r.status === 'already' ? '' : 'no');
+  };
+  inp.oninput = () => { list = suggest(NAMES, inp.value, 6); hi = -1; paint(); };
+  inp.onkeydown = (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!list.length) return; e.preventDefault();
+      hi = e.key === 'ArrowDown' ? (hi + 1) % list.length : (hi - 1 + list.length) % list.length;
+      paint();
+    } else if (e.key === 'Enter') {
+      if (hi >= 0 && list[hi]) { inp.value = list[hi].name; list = []; hi = -1; paint(); return; }
+      go();
+    } else if (e.key === 'Escape') { list = []; hi = -1; paint(); }
+  };
+  sub.onclick = go;
+  inp.focus();
 }
 
 /* ---------------- question modes ---------------- */

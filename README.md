@@ -93,6 +93,28 @@ about 99% of players with data fall under it.
 365 clubs have enough depth to play. Manchester United holds 154 players, 98 of
 whom score under 180.
 
+## Played for Both
+
+Two sides are shown with a count — `ARSENAL × CHELSEA · 13 players` — and you
+name everyone who turned out for each. Club × club and country × club both
+work; the country side reads nationality, so `NETHERLANDS × AC MILAN` gives
+van Basten, Gullit, Rijkaard and Seedorf.
+
+**The count is our count, not football's.** That is the one thing that could
+lose trust in this mode, so feedback is honest about which kind of miss it was:
+
+| Guess | Response | Costs a life |
+|---|---|---|
+| On the board | fills a slot | — |
+| Already named | says so | no |
+| Played for one side | names which side, and which they missed | yes |
+| Played for neither | says so | yes |
+| Not in our dataset | "no player by that name found" | **no** |
+
+A name we do not hold is a gap in our data, not a bad guess, so it never costs
+a life. Club prominence is measured by how many well-known players a club has,
+not the squad average — averaging punishes big clubs for having deep squads.
+
 ## Question generation
 
 `app/js/engine/` holds one file per mode, each a pure function of

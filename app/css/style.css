@@ -153,3 +153,18 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .sg .m{margin-left:auto;color:var(--muted);font-size:12px}
 .sg.on,.sg:active{background:rgba(255,122,24,.13)}
 .sg.on .n{color:var(--amber)}
+
+/* ---- Played for Both ---- */
+.vsbig{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
+  margin:6px 0 6px;text-align:center}
+.vsbig span{font-size:27px;font-weight:800;letter-spacing:-.9px;line-height:1.1}
+.vsbig i{font-style:normal;font-size:20px;font-weight:700;
+  background:linear-gradient(94deg,var(--hot),var(--amber));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.lives{color:var(--hot);letter-spacing:2px;font-size:13px}
+.slots{display:grid;gap:7px;margin-bottom:18px}
+.slot{min-height:46px;display:flex;align-items:center;padding:12px 15px;border-radius:11px;
+  border:1.5px dashed var(--line);background:rgba(20,22,29,.5);font-size:16px;font-weight:620;color:var(--muted)}
+.slot.on{border-style:solid;border-color:var(--hot);color:var(--fg);
+  background:linear-gradient(180deg,#2a1608,#16110c);animation:in .3s ease}
+.slot.miss{border-style:solid;border-color:var(--line);color:var(--muted);opacity:.75}
