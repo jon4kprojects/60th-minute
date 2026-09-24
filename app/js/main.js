@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b24.82aefeb';
+const BUILD = 'b27.7a03009';
 const app = document.getElementById('app');
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
@@ -601,12 +601,28 @@ function results() {
   document.getElementById('home').onclick = home;
 }
 
+// Hold the opening for its full sweep, but never longer: on a warm cache the
+// data is ready in milliseconds and waiting on an animation would just be a
+// delay pretending to be polish.
+const SPLASH_MS = 1150;
+const started = Date.now();
+const dropSplash = async () => {
+  const el = document.getElementById('splash');
+  if (!el) return;
+  const wait = Math.max(0, SPLASH_MS - (Date.now() - started));
+  await new Promise(r => setTimeout(r, wait));
+  el.classList.add('gone');
+  setTimeout(() => el.remove(), 600);
+};
+
 (async function () {
   try {
     DB = await loadData();
     NAMES = buildNameIndex(DB.players);
     home();
+    await dropSplash();
   } catch (e) {
+    dropSplash();
     app.innerHTML = `<div class="loading">Could not load data.<br><small>${esc(e.message)}</small></div>`;
   }
   // Background sync: costs nothing when offline, and a new dataset is picked

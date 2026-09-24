@@ -199,3 +199,67 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .install .d b{color:var(--fg)}
 .install .btn{margin-top:12px}
 .install .x{display:block;margin-top:10px;color:var(--muted);font-size:12px}
+
+/* ---------- opening ---------- */
+/* The mark is a clock, so the ring drawing itself is the natural loader. */
+.splash{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:20px;background:var(--bg);
+  transition:opacity .45s ease, visibility .45s}
+.splash.gone{opacity:0;visibility:hidden;pointer-events:none}
+#sweep{stroke-dasharray:180;stroke-dashoffset:180;animation:sweep 1s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes sweep{to{stroke-dashoffset:0}}
+.splash .sn{opacity:0;animation:pop .5s .45s ease forwards}
+@keyframes pop{from{opacity:0}to{opacity:1}}
+.sword{font-size:15px;font-weight:650;letter-spacing:.34em;color:var(--muted);
+  opacity:0;animation:rise .5s .6s ease forwards}
+.sword b{color:var(--fg);font-weight:800}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---------- everything else arrives, rather than appearing ---------- */
+@keyframes enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.app > div{animation:enter .34s cubic-bezier(.2,.7,.3,1) both}
+/* stagger the home cards so the list unfolds */
+.card{animation:enter .4s cubic-bezier(.2,.7,.3,1) both}
+.card:nth-child(1){animation-delay:.02s} .card:nth-child(2){animation-delay:.06s}
+.card:nth-child(3){animation-delay:.10s} .card:nth-child(4){animation-delay:.14s}
+.card:nth-child(5){animation-delay:.18s} .card:nth-child(6){animation-delay:.22s}
+.card:nth-child(7){animation-delay:.26s}
+.card{transition:transform .12s ease, border-color .2s ease, box-shadow .2s ease}
+.card:hover{border-color:var(--line-warm)}
+.card:active{transform:scale(.98)}
+
+.opt{animation:enter .3s cubic-bezier(.2,.7,.3,1) both;transition:transform .12s ease,
+  border-color .2s ease, background .2s ease, box-shadow .25s ease, opacity .25s ease}
+.opt:nth-child(1){animation-delay:.03s} .opt:nth-child(2){animation-delay:.07s}
+.opt:nth-child(3){animation-delay:.11s} .opt:nth-child(4){animation-delay:.15s}
+.opt:active{transform:scale(.985)}
+.opt.right{animation:flare .5s ease}
+@keyframes flare{0%{box-shadow:0 0 0 0 rgba(255,122,24,.55)}100%{box-shadow:0 0 0 18px rgba(255,122,24,0)}}
+
+.path li{animation:enter .32s cubic-bezier(.2,.7,.3,1) both}
+.path li:nth-child(1){animation-delay:.03s} .path li:nth-child(2){animation-delay:.09s}
+.path li:nth-child(3){animation-delay:.15s} .path li:nth-child(4){animation-delay:.21s}
+.path li:nth-child(5){animation-delay:.27s} .path li:nth-child(6){animation-delay:.33s}
+.path li:nth-child(7){animation-delay:.39s}
+
+.slot{transition:border-color .25s ease, background .3s ease, color .25s ease}
+.slot.on{animation:land .42s cubic-bezier(.2,.9,.3,1)}
+@keyframes land{0%{transform:scale(.96);opacity:.4}60%{transform:scale(1.015)}100%{transform:none;opacity:1}}
+.seat{transition:border-color .25s ease, box-shadow .3s ease}
+.seat .sc{transition:color .3s ease}
+.fb{animation:enter .3s cubic-bezier(.2,.7,.3,1) both}
+.sg{transition:background .15s ease}
+.chip{transition:border-color .18s ease, background .18s ease, color .18s ease, transform .12s ease}
+.chip:active{transform:scale(.96)}
+.btn{transition:transform .12s ease, box-shadow .25s ease, opacity .2s ease}
+.btn:active{transform:scale(.985)}
+.prog i{transition:width .45s cubic-bezier(.2,.7,.3,1)}
+.big{animation:count .6s cubic-bezier(.2,.9,.3,1) both}
+@keyframes count{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:none}}
+.install{animation:enter .4s .3s cubic-bezier(.2,.7,.3,1) both}
+
+/* respect a system preference for less movement */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;
+    transition-duration:.01ms !important}
+}
