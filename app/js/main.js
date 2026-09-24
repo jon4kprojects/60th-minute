@@ -5,8 +5,32 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b27.7a03009';
+const BUILD = 'b28.ca60b1a';
 const app = document.getElementById('app');
+
+// Every screen re-renders by rebuilding its markup, which is fine on arrival
+// and wrong on a chip tap: the entrance animation replays, the page jumps to
+// the top and focus is lost, so a toggle reads as a full reload. Entrance
+// motion belongs to arriving somewhere, not to updating what is already there.
+let currentScreen = null;
+function beginPaint(key) {
+  const same = key === currentScreen;
+  currentScreen = key;
+  app.classList.toggle('noanim', same);
+  if (!same) return;
+  const y = window.scrollY;
+  const a = document.activeElement;
+  const id = a && a.id ? a.id : null;
+  const caret = id && a.selectionStart != null ? a.selectionStart : null;
+  requestAnimationFrame(() => {            // after the rebuild has happened
+    window.scrollTo(0, y);
+    if (!id) return;
+    const f = document.getElementById(id);
+    if (!f) return;
+    f.focus({ preventScroll: true });
+    if (caret != null && f.setSelectionRange) f.setSelectionRange(caret, caret);
+  });
+}
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -53,6 +77,7 @@ window.addEventListener('popstate', () => { if (!atHome) home(); });
 function home() {
   atHome = true;
   const offline = navigator.serviceWorker?.controller;
+  beginPaint('home');
   app.innerHTML = '';
   app.append(el(`<div>
     <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
@@ -124,6 +149,7 @@ function setup501() {
     const hasLg = club ? F501.hasLeagueSplit(DB, club) : false;
     if (!hasLg) scope = 'all';
     const shown = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
+    beginPaint('setup501');
     app.innerHTML = '';
     app.append(el(`<div>
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
@@ -207,6 +233,7 @@ function setup501() {
 
 function play501(msg = null, tone = '') {
   const m = F501.METRICS[G.metric];
+  beginPaint('play501');
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button>
@@ -301,6 +328,7 @@ function setupPFB() {
     const boardSize = picked.length >= 2
       ? PFB.build(DB, picked.map(k => clubs.find(c => c.key === k))).count : 0;
 
+    beginPaint('setupPFB');
     app.innerHTML = '';
     app.append(el(`<div>
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
@@ -398,6 +426,7 @@ function setupPFB() {
 }
 
 function playPFBEmpty(sides) {
+  beginPaint('pfb-empty');
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button></div>
@@ -434,6 +463,7 @@ function playPFB(msg = null, tone = '') {
   const cleared = PB.found.size === b.count;
   const show = PB.countShown || done;
 
+  beginPaint('playPFB');
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button>
@@ -548,6 +578,7 @@ function render() {
     body += `<div class="opts">${q.options.map(o =>
       `<button class="opt" data-id="${o.id}">${esc(o.label)}</button>`).join('')}</div>`;
   }
+  beginPaint('question');
   app.innerHTML = '';
   app.append(el(`<div>${head}${body}</div>`));
   document.getElementById('back').onclick = home;
@@ -587,6 +618,7 @@ function results() {
   if (S.daily) store.markToday();
   if (S.score > store.best) store.best = S.score;
   const max = S.qs.length * 3;
+  beginPaint('results');
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="big">${S.score}</div><div class="big-sub">out of ${max}</div>

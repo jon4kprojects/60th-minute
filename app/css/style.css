@@ -263,3 +263,12 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
   *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0s !important;
     transition-duration:.01ms !important}
 }
+
+/* An update is not an arrival: the structure holds still when the screen stays
+   put. Genuinely new things - a feedback line, a slot being filled - still
+   animate, because those ARE arrivals. */
+.app.noanim > div,
+.app.noanim .card,
+.app.noanim .opt,
+.app.noanim .path li,
+.app.noanim .install{animation:none !important}
