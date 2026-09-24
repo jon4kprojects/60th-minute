@@ -190,6 +190,18 @@ A name we do not hold is a gap in our data, not a bad guess, so it never costs
 a life. Club prominence is measured by how many well-known players a club has,
 not the squad average — averaging punishes big clubs for having deep squads.
 
+### Why there is no league / all-competitions choice
+
+It was built, then removed: of the 19 verified clubs, **zero** publish a usable
+league breakdown. Most English club lists give Starts/Subs/Total for all
+competitions and no league column at all; only West Ham's and Leicester's pages
+split it out, and West Ham only for 39 players of 188. A permanently disabled
+control is worse than none, so the app states the scope plainly instead.
+
+`SCOPES` and `statKey()` remain in `football501.js` because they cost nothing
+and are ready the day a source with league figures arrives. The UI should not
+advertise a choice the data cannot honour.
+
 ## Guarding against lost facts
 
 The bug that hid Demba Ba's West Ham spell was not a wrong number, it was a

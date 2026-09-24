@@ -57,8 +57,6 @@ function setup501() {
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
 
   const draw = () => {
-    const hasLg = club ? F501.hasLeagueSplit(DB, club) : false;
-    if (!hasLg) scope = 'all';
     const shown = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
     app.innerHTML = '';
     app.append(el(`<div>
@@ -78,16 +76,8 @@ function setup501() {
       <div class="chips" id="metric">${Object.entries(F501.METRICS).map(([k, m]) =>
         `<button class="chip ${k === metric ? 'on' : ''}" data-m="${k}">${m.label}</button>`).join('')}</div>
 
-      <label>Competitions</label>
-      <div class="chips" id="scope">
-        <button class="chip ${scope === 'all' ? 'on' : ''}" data-s="all">all competitions</button>
-        <button class="chip ${scope === 'league' ? 'on' : ''} ${hasLg ? '' : 'off'}"
-          data-s="league" ${hasLg ? '' : 'disabled'}>league only</button>
-      </div>
-      ${club && !hasLg ? `<div class="tag" style="margin:6px 2px 0">League-only figures aren't published
-        for ${esc(shortClub(club))}, so this round counts all competitions.</div>` : ''}
-      ${DB.statSource ? `<div class="scopenote" style="margin-top:14px">Figures: ${esc(DB.statScope)}<br>
-        <span>Source: ${esc(DB.statSource)}</span></div>` : ''}
+      ${DB.statSource ? `<div class="scopenote" style="margin-top:14px">Counts <b>all competitions</b> — league, cups and Europe.<br>
+        <span>${esc(DB.statSource)}</span></div>` : ''}
 
       <label>Players</label>
       <div class="chips" id="np">${[2,3,4].map(i =>
@@ -129,9 +119,6 @@ function setup501() {
     if (filter) paintClubs();
 
     app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; draw(); });
-    app.querySelectorAll('#scope .chip').forEach(c => c.onclick = () => {
-      if (c.disabled) return; scope = c.dataset.s; draw();
-    });
     app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => { n = +c.dataset.n; draw(); });
     document.getElementById('go').onclick = () => {
       const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);

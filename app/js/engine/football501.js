@@ -17,9 +17,12 @@ export const METRICS = {
   apps:  { label: 'appearances', short: 'apps' },
 };
 
-// Competition scope is a separate axis from the statistic. League-only figures
-// exist only where the club's source page breaks them out, so the option is
-// offered per club rather than promised everywhere.
+// Competition scope is a separate axis from the statistic. The engine supports
+// it, but the UI does not currently offer it: of 19 verified clubs, ZERO
+// publish a usable league breakdown. Most English club lists give
+// Starts/Subs/Total for all competitions and no league column at all. The code
+// stays because it costs nothing and is ready the day a source with league
+// figures arrives - the UI should not advertise a choice we cannot honour.
 export const SCOPES = {
   all:    { label: 'all competitions', suffix: '' },
   league: { label: 'league only',      suffix: 'lg' },
