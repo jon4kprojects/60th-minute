@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b22.cfaee4c';
+const BUILD = 'b23.8512060';
 const app = document.getElementById('app');
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
@@ -89,9 +89,9 @@ function setup501() {
 
       <label>Competitions</label>
       <div class="chips" id="scope">
-        <button class="chip ${scope === 'all' ? 'on' : ''}" data-s="all">all competitions</button>
+        <button class="chip ${scope === 'all' ? 'on' : ''}" data-s="all">All competitions</button>
         <button class="chip ${scope === 'league' ? 'on' : ''} ${hasLg ? '' : 'off'}"
-          data-s="league" ${hasLg ? '' : 'disabled'}>league only</button>
+          data-s="league" ${hasLg ? '' : 'disabled'}>League only</button>
       </div>
       <div class="scopenote" style="margin-top:12px">
         ${scope === 'league'
@@ -225,7 +225,7 @@ function play501(msg = null, tone = '') {
       const r = F501.scoreEntry(DB, NAMES, G, v);
       const tone = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
       F501.applyTurn(G, r);
-      play501(F501.explain(r, F501.METRICS[G.metric].label), tone);
+      play501(F501.explain(r, F501.METRICS[G.metric].inline), tone);
     };
     sub.onclick = go;
     inp.focus();

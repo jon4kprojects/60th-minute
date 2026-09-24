@@ -11,9 +11,11 @@ import { lookup } from '../names.js';
 // conventions (Giggs is recorded at 672 for Man Utd, which is all competitions;
 // Gerrard at 504 for Liverpool, which is league only). Claiming league-only
 // precision we do not have would be the fastest way to lose players' trust.
+// `label` is for controls and headings; `inline` is for mid-sentence use
+// ("185 goals" must not read "185 Goals").
 export const METRICS = {
-  goals: { label: 'goals',       short: 'goals' },
-  apps:  { label: 'appearances', short: 'apps' },
+  goals: { label: 'Goals',       inline: 'goals',       short: 'goals' },
+  apps:  { label: 'Appearances', inline: 'appearances', short: 'apps' },
 };
 
 // Competition scope is a separate axis from the statistic, and both sides are
@@ -22,8 +24,8 @@ export const METRICS = {
 // appearances by convention (Wikipedia annotates it as such). Club lists alone
 // could not back this - none of them break league out.
 export const SCOPES = {
-  all:    { label: 'all competitions', suffix: '' },
-  league: { label: 'league only',      suffix: 'lg' },
+  all:    { label: 'All competitions', inline: 'all competitions', suffix: '' },
+  league: { label: 'League only',      inline: 'league only',      suffix: 'lg' },
 };
 export const statKey = (metric, scope) =>
   scope === 'league' ? 'lg' + metric[0].toUpperCase() + metric.slice(1) : metric;
