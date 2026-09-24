@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b30.36b8802';
+const BUILD = 'b31.a108485';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -405,9 +405,13 @@ function setupPFB() {
           <div class="chosen">${esc(shortClub(k))}<button class="x" data-drop="${i}">remove</button></div>`).join('')}
         ${more.length ? `
           <label>${picked.length ? 'Add another club' : 'Club 1'}</label>
-          <input class="clubslot" placeholder="Type a club"
+          <input class="clubslot" placeholder="Search, or pick from the list"
             autocomplete="off" autocorrect="off" spellcheck="false">
-          <div class="sugg" id="clubsugg" hidden></div>`
+          <div class="pickcount">${picked.length
+            ? `${more.length} club${more.length === 1 ? '' : 's'} share a player with
+               ${picked.map(k => esc(shortClub(k))).join(' and ')} \u2014 that is all of them`
+            : `${more.length} clubs to choose from`}</div>
+          <div class="sugg open" id="clubsugg"></div>`
         : `<div class="tag" style="margin:10px 2px 0">No other club shares a player with these.</div>`}
         ${picked.length >= 2 ? `<div class="tag" style="margin:10px 2px 0">${
           boardSize >= PFB.BIG_BOARD
@@ -438,15 +442,21 @@ function setupPFB() {
     const inp = app.querySelector('.clubslot');
     if (inp) {
       const box = document.getElementById('clubsugg');
-      inp.oninput = () => {
+      // The whole eligible list is shown, not just matches for what has been
+      // typed. Seven results for "a" gave no way to tell whether those were the
+      // only clubs that work, or merely the first seven that matched.
+      const listed = [...more].sort((a, b) => a.label.localeCompare(b.label));
+      const render = () => {
         const t = inp.value.trim().toLowerCase();
-        const hits = t ? more.filter(c => c.label.toLowerCase().includes(t)).slice(0, 7) : [];
-        if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
-        box.hidden = false;
-        box.innerHTML = hits.map(c =>
-          `<button class="sg" data-k="${esc(c.key)}"><span class="n">${esc(c.label)}</span></button>`).join('');
+        const hits = t ? listed.filter(c => c.label.toLowerCase().includes(t)) : listed;
+        box.innerHTML = hits.length
+          ? hits.map(c => `<button class="sg" data-k="${esc(c.key)}">
+              <span class="n">${esc(c.label)}</span></button>`).join('')
+          : `<div class="sgnone">Nothing matching that shares a player with your picks.</div>`;
         box.querySelectorAll('.sg').forEach(x => x.onclick = () => { chosen.push(x.dataset.k); draw(); });
       };
+      render();
+      inp.oninput = render;
       inp.onkeydown = (e) => {
         if (e.key !== 'Enter') return;
         const f = box.querySelector('.sg'); if (f) f.click();

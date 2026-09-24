@@ -277,3 +277,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 
 .legend b{color:var(--muted);font-weight:800;letter-spacing:.04em}
 .slot .fig{letter-spacing:.02em}
+
+.sugg.open{max-height:230px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pickcount{color:var(--muted);font-size:12px;margin:8px 2px 6px;line-height:1.45}
+.sgnone{padding:14px 15px;color:var(--muted);font-size:14px}
