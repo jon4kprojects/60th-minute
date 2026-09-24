@@ -20,9 +20,16 @@ RESERVE_RE = re.compile(
     r"(\sB$|\sII$|\bReserves?\b|\bU-?\d\d\b|\bYouth\b|\bAcademy\b"
     r"|Atl[eè]tic$|Castilla|\bB team\b|\bAmateure\b|\bII$)", re.I)
 
+# Wikidata has year-shaped typos in appearance fields (Maldini is recorded with
+# 1987 appearances for Milan; he made 902). The all-time single-club record is
+# around 1000, so anything past this is a data-entry error, not a career.
+MAX_CLUB_APPS = 1100
+
 MIN_CAREER_APPS = 150   # separates footballers from famous people who played a bit
 MIN_SPELL_APPS  = 15    # below this, a spell is noise in a career path
-MIN_CLUBS       = 2     # need a path, not a one-club career
+MIN_CLUBS       = 1     # keep one-club legends (Giggs, Totti, Maldini):
+                        # Football 501 needs them, and Career Path filters
+                        # for >=3 clubs at generation time anyway
 
 load = lambda n: json.load(open(os.path.join(OUT, f"raw_{n}.json")))
 V    = lambda b, k: b.get(k, {}).get("value")
@@ -79,13 +86,20 @@ for b in load("national"):
     n = nationality(V(b, "teamName") or "")
     if n: nat[QID(V(b, "p"))].append((num(V(b, "caps")) or 0, n))
 
+suspect_apps = 0
+had_apps_stmt = set()   # players Wikidata records SOME appearance figure for
 spells = collections.defaultdict(list)
 for b in load("spells"):
+    _a = num(V(b, "apps"))
+    _had_apps = _a is not None
+    if _a is not None and _a > MAX_CLUB_APPS:
+        _a = None; suspect_apps += 1
+    if _had_apps: had_apps_stmt.add(QID(V(b, "p")))
     spells[QID(V(b, "p"))].append({
         "club": V(b, "clubName"), "clubId": QID(V(b, "club")),
         "country": V(b, "country"),
         "start": year(V(b, "start")), "end": year(V(b, "end")),
-        "apps": num(V(b, "apps")), "goals": num(V(b, "goals"))})
+        "apps": _a, "goals": num(V(b, "goals"))})
 
 # --- filter + shape -----------------------------------------------------
 POS_ORDER = ["goalkeeper", "defender", "centre-back", "full-back", "midfielder",
@@ -103,12 +117,21 @@ for pid, p in players.items():
         rejected["no usable name"] += 1; continue
     raw = spells.get(pid, [])
     career_apps = sum(s["apps"] or 0 for s in raw)
+    # The floor is there to drop people famous for something else who played a
+    # bit (Camus, Niels Bohr) - they have no appearance statements at all.
+    # Someone like Maldini, whose only figure was a typo, is a real footballer
+    # with unusable stats: keep him, but withhold the numbers.
+    no_stats = False
     if career_apps < MIN_CAREER_APPS:
-        rejected["too few career apps"] += 1; continue
+        if pid in had_apps_stmt and p["fame"] >= 55:
+            no_stats = True
+        else:
+            rejected["too few career apps"] += 1; continue
 
     # keep meaningful, dated spells; order them; collapse consecutive repeats
-    keep = [s for s in raw if (s["apps"] or 0) >= MIN_SPELL_APPS and s["start"]
-            and not RESERVE_RE.search(s["club"] or "")]
+    keep = [s for s in raw
+            if s["start"] and not RESERVE_RE.search(s["club"] or "")
+            and ((s["apps"] or 0) >= MIN_SPELL_APPS or no_stats)]
     keep.sort(key=lambda s: (s["start"], s["end"] or s["start"]))
     path = []
     for s in keep:
@@ -129,11 +152,12 @@ for pid, p in players.items():
         "position": best_pos(b.get("pos", set())),
         "nationality": natl[0][1] if natl else None,
         "caps": natl[0][0] if natl and natl[0][0] else None,
-        "careerApps": career_apps,
-        "careerGoals": sum(s["goals"] or 0 for s in raw),
+        "noStats": no_stats,
+        "careerApps": None if no_stats else career_apps,
+        "careerGoals": None if no_stats else sum(s["goals"] or 0 for s in raw),
         # flagged when the ratio is implausible for official records, so
         # Higher/Lower can skip it rather than ask an unfair question
-        "statsSuspect": bool(career_apps and
+        "statsSuspect": no_stats or bool(career_apps and
             sum(s["goals"] or 0 for s in raw) / career_apps > 0.9),
         "mid": (lambda ys: (min(ys) + max(ys)) // 2 if ys else None)(
             [y for s2 in path for y in (s2["start"], s2["end"] or s2["start"]) if y]),
@@ -149,6 +173,7 @@ json.dump({"generated": "wikidata-qlever", "players": out},
 # --- report -------------------------------------------------------------
 size = os.path.getsize(os.path.join(OUT, "dataset.json"))
 print(f"players kept        {len(out):,}")
+print(f"  implausible appearance figures dropped: {suspect_apps:,}")
 for k, v in rejected.most_common(): print(f"  rejected: {k:22s} {v:,}")
 print(f"\nclubs (distinct)    {len({c['club'] for p in out for c in p['clubs']}):,}")
 print(f"club spells         {sum(len(p['clubs']) for p in out):,}")

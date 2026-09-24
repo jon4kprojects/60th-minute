@@ -47,6 +47,37 @@ Every rule in `transform.py` is there because live data broke without it:
   unguessable.
 - **Wikipedia titles as display names** — Wikidata labels give full legal names,
   and some players (Mbappé) have no English label at all.
+- **Appearance plausibility cap** — Maldini is recorded with 1,987 appearances
+  for Milan (someone typed a year into the field). He is kept as a player but
+  his stats are withheld rather than shown wrong.
+- **One-club players retained** — an earlier `MIN_CLUBS >= 2` rule silently
+  removed Giggs, Scholes and Totti, who are exactly the names Football 501
+  needs. Career Path filters for 3+ clubs at generation time instead.
+
+### A caveat on appearance figures
+
+Wikidata mixes conventions: Giggs is recorded at 672 for Manchester United (all
+competitions) while Gerrard is at 504 for Liverpool (league only). The app
+therefore says "appearances" rather than "league appearances". Figures are
+right often enough to play with, but they are not an official record.
+
+## Football 501
+
+Darts scoring with footballers, pass-and-play on one device (2-4 players).
+Everyone starts on 501, a club is chosen, and you take turns naming players who
+turned out for them. Their appearances (or goals) for that club come off your
+total. Over 180 scores nothing, mirroring the maximum visit in darts, so the
+skill is finding a usable number rather than the most famous name. Checkout
+window is 0 to -10; going past it busts the turn.
+
+Input is deliberately free text with **no autocomplete**: the game is recalling
+players from memory, and offering the club's squad list would hand it over. The
+matcher in `app/js/names.js` scores candidates so accents, surnames-only and
+phone-keyboard typos all resolve ("scholse" finds Paul Scholes), and an
+ambiguous surname prefers whoever actually played for the club.
+
+365 clubs have enough depth to play. Manchester United holds 154 players, 98 of
+whom score under 180.
 
 ## Question generation
 

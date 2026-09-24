@@ -38,9 +38,16 @@ def ql(query):
 
 players = {QID(V(b, "p")): V(b, "name") for b in load("players")}
 spells = load("spells")
+def as_num(x):
+    """Wikidata 'unknown value' statements come back as blank-node URIs,
+    not numbers, so every numeric read has to tolerate a non-number."""
+    try: return float(x)
+    except (TypeError, ValueError): return None
+
 have = collections.Counter()
 for b in spells:
-    if (b.get("apps") and float(V(b, "apps")) >= MIN_SPELL_APPS) and b.get("start"):
+    n = as_num(V(b, "apps"))
+    if n is not None and n >= MIN_SPELL_APPS and b.get("start"):
         have[QID(V(b, "p"))] += 1
 
 todo = [p for p in players if have[p] < 2]

@@ -1,12 +1,13 @@
 // Precache everything on install so the game works with no network at all.
 // Bump CACHE on every deploy: the old cache is deleted on activate.
-const CACHE = 'footy-v1';
+const CACHE = 'footy-v2';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css',
-  './js/main.js', './js/data.js', './js/rng.js',
+  './js/main.js', './js/data.js', './js/rng.js', './js/names.js',
   './js/engine/index.js', './js/engine/careerPath.js',
   './js/engine/higherLower.js', './js/engine/whoAmI.js',
+  './js/engine/football501.js',
   './data/dataset.json',
   './icon-180.png', './icon-512.png',
 ];
