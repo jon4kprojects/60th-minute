@@ -487,7 +487,14 @@ function results() {
     if (b) { b.classList.add('on'); b.innerHTML = '<i class="dot"></i>New football data ready — restart to apply'; }
   });
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').then(() => {
+    // A new worker taking control means the shell changed underneath us;
+    // reload once so the page is running the code it just fetched.
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return; reloading = true; location.reload();
+    });
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      reg.update().catch(() => {});
       navigator.serviceWorker.ready.then(() => {
         const b = document.querySelector('.badge');
         if (b) { b.classList.add('on'); b.innerHTML = '<i class="dot"></i>Offline ready'; }
