@@ -2,3 +2,5 @@ ingest/raw/
 ingest/out/raw_*.json
 __pycache__/
 .DS_Store
+/tmp/
+serve.py
