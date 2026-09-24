@@ -5,6 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
+const BUILD = 'b20.1636084';
 const app = document.getElementById('app');
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
@@ -28,7 +29,7 @@ function home() {
   app.append(el(`<div>
     <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
     <div class="tag">${DB.players.length.toLocaleString()} players · 1940s to today</div>
-    <div class="dataver">Football data ${esc(DB.version)}${DB.built ? ' · ' + esc(DB.built) : ''}</div>
+    <div class="dataver">Build ${esc(BUILD)} · data ${esc(DB.version)}</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="pfb">
