@@ -1,6 +1,6 @@
 // Precache everything on install so the game works with no network at all.
 // Bump CACHE on every deploy: the old cache is deleted on activate.
-const CACHE = 'm60-v5';
+const CACHE = 'm60-v6';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css',
@@ -8,7 +8,7 @@ const ASSETS = [
   './js/engine/index.js', './js/engine/careerPath.js',
   './js/engine/higherLower.js', './js/engine/whoAmI.js',
   './js/engine/football501.js', './js/engine/playedForBoth.js',
-  './data/dataset.json',
+  './data/dataset.json', './data/version.json',
   './icon-180.png', './icon-512.png', './icon-64.png', './icon-32.png',
   './brand/logo-lockup.svg', './brand/mark.svg',
 ];

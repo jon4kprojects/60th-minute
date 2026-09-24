@@ -1,13 +1,66 @@
 // Dataset loading + the derived indexes the generators need.
 let DB = null;
 
+// ---- offline-first data layer -------------------------------------------
+// Gameplay never depends on the network. The device holds a football dataset
+// and plays from it; when there IS a connection the app asks only for a tiny
+// version file, and downloads a new dataset solely when the version differs.
+// The downloaded copy lives in the Cache API and supersedes the bundled one,
+// so football data can be updated without shipping a new build of the app.
+const DATA_CACHE = 'm60-data';
+const VKEY = 'm60-data-version';
+
+const installed = () => { try { return localStorage.getItem(VKEY); } catch { return null; } };
+const setInstalled = (v) => { try { localStorage.setItem(VKEY, v); } catch {} };
+
+async function cachedPayload() {
+  const v = installed();
+  if (!v || !self.caches) return null;
+  try {
+    const c = await caches.open(DATA_CACHE);
+    const hit = await c.match('data-' + v);
+    return hit ? await hit.json() : null;
+  } catch { return null; }
+}
+
+/**
+ * Check for a newer published dataset. Silent and entirely optional: any
+ * failure (offline, DNS, 404) leaves the device on the copy it already has.
+ * Returns the new version string if one was downloaded.
+ */
+export async function checkForUpdate() {
+  if (!self.caches || !navigator.onLine) return null;
+  try {
+    const r = await fetch('./data/version.json', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const meta = await r.json();
+    if (!meta.version || meta.version === installed()) return null;
+    const d = await fetch('./data/dataset.json', { cache: 'no-store' });
+    if (!d.ok) return null;
+    const body = await d.clone().json();
+    if (!body.players || !body.players.length) return null;   // never install an empty set
+    const c = await caches.open(DATA_CACHE);
+    await c.put('data-' + meta.version, d);
+    const old = installed();
+    setInstalled(meta.version);
+    if (old) await c.delete('data-' + old);
+    return meta.version;
+  } catch { return null; }
+}
+
 export async function loadData() {
   if (DB) return DB;
-  const res = await fetch('./data/dataset.json');
-  if (!res.ok) throw new Error('dataset unavailable');
-  const raw = await res.json();
+  let raw = await cachedPayload();
+  if (!raw) {
+    const res = await fetch('./data/dataset.json');
+    if (!res.ok) throw new Error('dataset unavailable');
+    raw = await res.json();
+    if (raw.version) setInstalled(raw.version);
+  }
   const players = raw.players.filter(p => p.name && p.clubs && p.clubs.length);
   DB = {
+    version: raw.version || 'bundled',
+    built: raw.built || null,
     players,
     byId: new Map(players.map(p => [p.id, p])),
     // fame tiers drive difficulty and, critically, decoy plausibility:

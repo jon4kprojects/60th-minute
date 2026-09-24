@@ -1,4 +1,4 @@
-import { loadData } from './data.js';
+import { loadData, checkForUpdate } from './data.js';
 import { MODES, buildRound } from './engine/index.js';
 import { mulberry32, seedFrom } from './rng.js';
 import { buildNameIndex, suggest } from './names.js';
@@ -28,6 +28,7 @@ function home() {
   app.append(el(`<div>
     <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
     <div class="tag">${DB.players.length.toLocaleString()} players · 1940s to today</div>
+    <div class="dataver">Football data ${esc(DB.version)}${DB.built ? ' · ' + esc(DB.built) : ''}</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="pfb">
@@ -421,6 +422,13 @@ function results() {
   } catch (e) {
     app.innerHTML = `<div class="loading">Could not load data.<br><small>${esc(e.message)}</small></div>`;
   }
+  // Background sync: costs nothing when offline, and a new dataset is picked
+  // up on the next launch rather than yanked out from under a round in play.
+  checkForUpdate().then(v => {
+    if (!v) return;
+    const b = document.querySelector('.badge');
+    if (b) { b.classList.add('on'); b.innerHTML = '<i class="dot"></i>New football data ready — restart to apply'; }
+  });
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(() => {
       navigator.serviceWorker.ready.then(() => {

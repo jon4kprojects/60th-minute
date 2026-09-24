@@ -167,8 +167,28 @@ for pid, p in players.items():
 
 out.sort(key=lambda p: -p["fame"])
 os.makedirs(OUT, exist_ok=True)
-json.dump({"generated": "wikidata-qlever", "players": out},
-          open(os.path.join(OUT, "dataset.json"), "w"), separators=(",", ":"))
+# Versioned payload. The client stores the version it holds and only downloads
+# when the published version differs, so the data layer updates independently
+# of the app itself - no store release needed to ship better football data.
+import hashlib, datetime, subprocess
+payload = {"source": "wikidata-qlever", "players": out}
+body = json.dumps(payload, separators=(",", ":"))
+digest = hashlib.sha256(body.encode()).hexdigest()[:12]
+built = datetime.date.today().isoformat()
+try:
+    n = int(subprocess.run(["git", "rev-list", "--count", "HEAD"],
+                           capture_output=True, text=True).stdout.strip() or 0)
+except Exception:
+    n = 0
+version = f"1.{n}.{digest[:6]}"
+payload["version"] = version
+payload["built"] = built
+open(os.path.join(OUT, "dataset.json"), "w").write(
+    json.dumps(payload, separators=(",", ":")))
+json.dump({"version": version, "built": built, "sha256": digest,
+           "players": len(out), "bytes": len(body)},
+          open(os.path.join(OUT, "version.json"), "w"), indent=2)
+print(f"\ndata version       {version}  ({built})")
 
 # --- report -------------------------------------------------------------
 size = os.path.getsize(os.path.join(OUT, "dataset.json"))

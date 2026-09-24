@@ -15,6 +15,40 @@ Adding to the home screen matters. iOS evicts a website's stored data after
 7 days of no interaction, but home-screen-installed apps are exempt — a
 bookmark alone can lose its cache while you're away.
 
+## Architecture: offline-first with versioned data
+
+Gameplay never depends on a connection. The device holds a football dataset and
+plays entirely from it. When there *is* a connection the app fetches only a tiny
+`version.json`, and downloads a new dataset solely when the published version
+differs from the one installed. The downloaded copy lives in the Cache API and
+supersedes the bundled one, so **football data ships independently of the app** —
+no new build required to correct a stat or widen coverage.
+
+    ingest (extract -> patch -> transform)   one-off, run by hand
+      -> dataset.json + version.json          published as static files
+        -> app checks version.json when online
+          -> downloads only if the version differs
+            -> stores locally, applies on next launch
+
+Failure is always silent and safe: offline, DNS failure, 404 or an empty
+payload all leave the device on the copy it already has. A new dataset is
+applied on the next launch rather than swapped out mid-round.
+
+**What is deliberately not built yet: a backend and delta updates.** Both are
+the right answer at scale, and neither earns its place here:
+
+- Every mode is historical — 501, Played for Both, Career Path, Who Am I?,
+  Top 10. A transfer today changes none of them. The data changes when the
+  dataset is regenerated, which is a release, not a feed.
+- The whole dataset is ~500 KB gzipped, and ~2 MB even with full club rosters:
+  under two seconds on 4G. A delta engine would save that occasionally, at the
+  cost of a diff format, a migration path and a server.
+
+The client contract (`version.json` -> dataset) does not change when a backend
+is added, so that work is additive rather than a rewrite. Add it when: data
+starts changing daily (live or current-season modes), the payload passes
+~20 MB, or upstream API calls need centralising away from devices.
+
 ## Data
 
 Everything comes from **Wikidata** (CC0, public domain). No API keys, no paid
