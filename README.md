@@ -4,6 +4,12 @@ A dynamically-generated football quiz. Brand assets live in `app/brand/`
 (open `app/brand/index.html` for the sheet). Questions are built from structured
 player data at runtime, not written by hand. Works fully offline once installed.
 
+## Live
+
+**https://jon4kprojects.github.io/60th-minute/**
+
+Deployed from `app/` by `.github/workflows/pages.yml` on every push to main.
+
 ## Playing offline
 
 1. Open the deployed URL on your phone **while on wifi**.
