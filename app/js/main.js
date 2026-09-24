@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b28.ca60b1a';
+const BUILD = 'b29.bfe8dac';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -445,13 +445,11 @@ function slotRow(id, cls) {
   // On a two-club board the heading already names the sides in order, so bare
   // numbers read fine and keep the player's name on one line. With three or
   // more, label them - the order is no longer obvious at a glance.
-  // Always show every side, even where we hold no figure (Beardsley made one
-  // appearance for Manchester United and was dropping off the row entirely).
-  const bare = b.sides.length === 2;
-  const bits = b.sides.map(s => {
-    const f = PFB.figureFor(DB, p, s) || '\u2013';
-    return bare ? f : `${shortClub(s.label)} ${f}`;
-  });
+  // Bare numbers in board order - the legend above says which club is which,
+  // so repeating club names on every row only wrapped the player's name.
+  // Every side always appears, even where we hold no figure (Beardsley made a
+  // single Manchester United appearance and was dropping off the row).
+  const bits = b.sides.map(s => PFB.figureFor(DB, p, s) || '\u2013');
   return `<div class="slot ${cls}"><span>${esc(p.name)}</span>` +
          (bits.length ? `<span class="fig">${esc(bits.join(' \u00b7 '))}</span>` : '') + `</div>`;
 }
@@ -472,6 +470,8 @@ function playPFB(msg = null, tone = '') {
     <div class="vsbig">${b.sides.map(s=>`<span>${esc(s.label)}</span>`).join('<i>×</i>')}</div>
     <div class="tag" style="margin-bottom:18px">Played for <b>all ${b.sides.length}</b> ·
       ${show ? `${b.count} to find` : '? to find'} · ${PB.found.size} found</div>
+    ${(found.length || (show && missing.length)) ? `<div class="legend">
+      Appearances for ${b.sides.map(x => esc(shortClub(x.label))).join(', then ')}</div>` : ''}
     <div class="slots">
       ${found.map(id => slotRow(id, 'on')).join('')}
       ${show ? missing.map(id => done ? slotRow(id, 'miss') : `<div class="slot"></div>`).join('') : ''}
