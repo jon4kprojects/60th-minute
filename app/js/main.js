@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b20.1636084';
+const BUILD = 'b22.cfaee4c';
 const app = document.getElementById('app');
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstElementChild; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
@@ -266,9 +266,9 @@ function setupPFB() {
             `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}
           <button class="chip ${n === 'any' ? 'on' : ''}" data-n="any">Any</button>
         </div>
-        <div class="tag" style="margin:8px 2px 0">Two clubs gives a board to clear. Three or
-          more usually comes down to a single player who turned out for <b>all</b> of
-          them — harder, and shorter.</div>`
+        <div class="tag" style="margin:8px 2px 0">Two clubs gives the longest board.
+          More clubs means fewer players managed all of them — six is almost always
+          a single answer.</div>`
       : `
         ${picked.map((k, i) => `
           <label>Club ${i + 1}</label>

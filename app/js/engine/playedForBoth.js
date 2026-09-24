@@ -47,6 +47,34 @@ export const countryChoices = (db) =>
  * Offering anything else lets you build a board with nothing on it, which is a
  * dead end you only discover after pressing Start.
  */
+/**
+ * Candidate next clubs WITH the board size each would leave behind.
+ *
+ * Growing a board by picking blindly from the compatible set collapses it to a
+ * single answer almost every time past three clubs, which made every round the
+ * same "guess the one player". Knowing the resulting size lets the generator
+ * prefer clubs that keep several in play.
+ */
+export function nextOptions(db, chosenKeys) {
+  const all = clubChoices(db);
+  let shared = null;
+  for (const k of chosenKeys) {
+    const set = db.byClub.get(k) || new Set();
+    shared = shared === null ? new Set(set) : new Set([...shared].filter(id => set.has(id)));
+    if (!shared.size) return [];
+  }
+  const out = [];
+  for (const c of all) {
+    if (chosenKeys.includes(c.key)) continue;
+    const set = db.byClub.get(c.key) || new Set();
+    let size = 0;
+    if (shared === null) size = set.size;
+    else for (const id of shared) if (set.has(id)) size++;
+    if (size > 0) out.push({ ...c, size });
+  }
+  return out;
+}
+
 export function compatibleClubs(db, chosenKeys) {
   const all = clubChoices(db);
   if (!chosenKeys.length) return all;
@@ -86,22 +114,33 @@ export function build(db, sides) {
 }
 
 export function generate(db, rnd, n = 2) {
-  if (n === 'any') n = 2 + Math.floor(rnd() * 3);
+  // 'any' stays in 2-5: at six clubs every board collapses to a single answer,
+  // so a surprise round should not land there.
+  if (n === 'any') n = 2 + Math.floor(rnd() * 4);
   const clubs = clubChoices(db);
   const countries = countryChoices(db);
   if (clubs.length < n) return null;
 
-  for (let attempt = 0; attempt < 400; attempt++) {
-    // Grow the board one club at a time, always from clubs that keep someone
-    // in the shared set. Sampling n clubs blind essentially never intersects.
+  // Two passes: first insisting the board keeps more than one answer, then
+  // accepting a single-answer board if the shape genuinely allows nothing more.
+  for (let attempt = 0; attempt < 500; attempt++) {
+    const wantPlural = attempt < 400;
     const keys = [pick(rnd, clubs).key];
     let ok = true;
     while (keys.length < n) {
-      const next = compatibleClubs(db, keys);
-      if (!next.length) { ok = false; break; }
-      keys.push(pick(rnd, next).key);
+      const opts = nextOptions(db, keys);
+      if (!opts.length) { ok = false; break; }
+      // prefer clubs that leave several players standing, without always
+      // taking the largest - that would deal the same board every time
+      const viable = wantPlural ? opts.filter(o => o.size >= 2) : opts;
+      const poolOpts = viable.length ? viable : opts;
+      const total = poolOpts.reduce((a, o) => a + o.size, 0);
+      let r = rnd() * total, chosenOpt = poolOpts[poolOpts.length - 1];
+      for (const o of poolOpts) { r -= o.size; if (r <= 0) { chosenOpt = o; break; } }
+      keys.push(chosenOpt.key);
     }
     if (!ok) continue;
+    if (wantPlural && solve(db, keys.map(k => clubs.find(c => c.key === k))).length < 2) continue;
 
     let sides = keys.map(k => clubs.find(c => c.key === k));
     if (n === 2 && countries.length && rnd() < 0.25) {

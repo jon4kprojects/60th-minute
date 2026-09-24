@@ -8,7 +8,7 @@
 //   app shell (html/js/css)  network-first, fall back to cache when offline
 //   dataset + icons          cache-first, since they are large and versioned
 //
-const CACHE = 'm60-b20.1636084';
+const CACHE = 'm60-b22.cfaee4c';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css',
