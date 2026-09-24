@@ -249,7 +249,7 @@ function setupPFB() {
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
       <div class="kicker">Played for Both</div>
       <h1 style="font-size:30px">Clear the <em>board</em></h1>
-      <div class="tag">Name every player who turned out for at least two of the
+      <div class="tag">Name every player who turned out for <b>all</b> of the
         chosen clubs. Three lives.</div>
 
       <label>Clubs</label>
@@ -265,8 +265,9 @@ function setupPFB() {
             `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}
           <button class="chip ${n === 'any' ? 'on' : ''}" data-n="any">Any</button>
         </div>
-        <div class="tag" style="margin:8px 2px 0">More clubs means a bigger board — you still
-          only need players who turned out for <b>two</b> of them.</div>`
+        <div class="tag" style="margin:8px 2px 0">Two clubs gives a board to clear. Three or
+          more usually comes down to a single player who turned out for <b>all</b> of
+          them — harder, and shorter.</div>`
       : `
         ${picked.map((k, i) => `
           <label>Club ${i + 1}</label>
@@ -279,8 +280,8 @@ function setupPFB() {
         : `<div class="tag" style="margin:10px 2px 0">No other club shares a player with these.</div>`}
         ${picked.length >= 2 ? `<div class="tag" style="margin:10px 2px 0">${
           boardSize >= PFB.BIG_BOARD
-            ? `Big board — <b>${boardSize} players</b> to find, with three lives. Fewer clubs makes a shorter round.`
-            : 'Only clubs sharing a player with your picks are offered, so the board is never empty.'
+            ? `Big board — <b>${boardSize} players</b> to find, with three lives.`
+            : `<b>${boardSize} player${boardSize === 1 ? '' : 's'}</b> turned out for all of these. Only clubs that keep at least one are offered, so the board is never empty.`
         }</div>` : ''}`}
 
       <button class="btn" id="go" ${mode === 'pick' && picked.length < 2 ? 'disabled' : ''}>
@@ -358,14 +359,13 @@ function slotRow(id, cls) {
   // On a two-club board the heading already names the sides in order, so bare
   // numbers read fine and keep the player's name on one line. With three or
   // more, label them - the order is no longer obvious at a glance.
+  // Always show every side, even where we hold no figure (Beardsley made one
+  // appearance for Manchester United and was dropping off the row entirely).
   const bare = b.sides.length === 2;
-  const bits = b.sides
-    .map(s => {
-      const f = PFB.figureFor(DB, p, s);
-      if (!f) return bare ? '\u2013' : null;
-      return bare ? f : `${shortClub(s.label)} ${f}`;
-    })
-    .filter(Boolean);
+  const bits = b.sides.map(s => {
+    const f = PFB.figureFor(DB, p, s) || '\u2013';
+    return bare ? f : `${shortClub(s.label)} ${f}`;
+  });
   return `<div class="slot ${cls}"><span>${esc(p.name)}</span>` +
          (bits.length ? `<span class="fig">${esc(bits.join(' \u00b7 '))}</span>` : '') + `</div>`;
 }
@@ -383,8 +383,8 @@ function playPFB(msg = null, tone = '') {
       <div class="prog"><i style="width:${show ? (PB.found.size/b.count)*100 : 0}%"></i></div>
       <span class="lives">${'●'.repeat(Math.max(0,PB.lives))}${'○'.repeat(PFB.LIVES-Math.max(0,PB.lives))}</span></div>
     <div class="vsbig">${b.sides.map(s=>`<span>${esc(s.label)}</span>`).join('<i>×</i>')}</div>
-    <div class="tag" style="margin-bottom:18px">
-      ${show ? `${b.count} players` : '? players'} · ${PB.found.size} found</div>
+    <div class="tag" style="margin-bottom:18px">Played for <b>all ${b.sides.length}</b> ·
+      ${show ? `${b.count} to find` : '? to find'} · ${PB.found.size} found</div>
     <div class="slots">
       ${found.map(id => slotRow(id, 'on')).join('')}
       ${show ? missing.map(id => done ? slotRow(id, 'miss') : `<div class="slot"></div>`).join('') : ''}

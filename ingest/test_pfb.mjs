@@ -12,18 +12,18 @@ const rnd = mulberry32(99); let made=0, bad=0;
 for (let i=0;i<200;i++){
   const b=P.generate(db,rnd,2+(i%4)); if(!b){continue;} made++;
   if (b.answerIds.length!==b.count) bad++;
-  if (b.count<5||b.count>20) bad++;
+  if (b.count<1||b.count>20) bad++;
   if (new Set(b.sides.map(s=>s.key)).size !== b.sides.length) bad++;
   // every listed answer must genuinely belong to at least two of the sides
   for (const id of b.answerIds){
     const p=db.byId.get(id);
     const n=b.sides.filter(s=> s.kind==='country' ? p.nationality===s.key
                                                   : (p.allClubs||p.clubs.map(c=>c.club)).includes(s.key)).length;
-    if(n<2){bad++;break;}
+    if(n < b.sides.length){bad++;break;}   // must have played for ALL of them
   }
 }
 console.log(`  generated ${made}/200, malformed ${bad}`);
-ok(bad===0,'every board is well-formed and every answer verified on both sides');
+ok(bad===0,'every board is well-formed and every answer played for ALL the sides');
 
 console.log('\n=== playing a board ===');
 const b=P.generate(db,mulberry32(7),2);
@@ -39,7 +39,7 @@ r=P.guess(db,idx,g,'Zibblewick Nonesuch'); P.apply(g,r);
 ok(r.status==='unknown' && g.lives===P.LIVES, 'a name we do not hold costs no life (our gap, not their error)');
 const onlyLeft=db.players.find(p=>(p.allClubs||[]).includes(b.sides[0].key) && !b.answerIds.includes(p.id));
 if(onlyLeft){ r=P.guess(db,idx,g,onlyLeft.name); P.apply(g,r);
-  ok(r.status==='one-side' && g.lives===P.LIVES-1, `"${onlyLeft.name}" -> ${P.explain(r)}`); }
+  ok(r.status==='partial' && g.lives===P.LIVES-1, `"${onlyLeft.name}" -> ${P.explain(r)}`); }
 console.log('\n=== clearing it ===');
 const g2=P.createGame(b);
 for(const id of b.answerIds){ const rr=P.guess(db,idx,g2,db.byId.get(id).name); P.apply(g2,rr); }
@@ -54,10 +54,12 @@ g3.countShown=true;
 ok(g3.countShown===true, 'the clue can be revealed on request');
 
 console.log('\n=== manual selection ===');
-const picks=P.clubChoices(db).slice(0,4);
+// hand-picked sets must be built through the filter, or they share nobody
+let picks=[P.clubChoices(db)[0]];
+while(picks.length<3){ const nx=P.compatibleClubs(db,picks.map(p=>p.key)); if(!nx.length) break; picks.push(nx[0]); }
 const man=P.build(db,picks);
 console.log(`  ${picks.map(p=>p.label).join(' × ')} = ${man.count} players`);
 ok(man.answerIds.every(id=>{
   const p=db.byId.get(id);
-  return picks.filter(s=>(p.allClubs||[]).includes(s.key)).length>=2;
-}), 'manual board answers all belong to at least two of the picks');
+  return picks.every(s=>(p.allClubs||[]).includes(s.key));
+}), 'manual board answers played for every one of the picks');

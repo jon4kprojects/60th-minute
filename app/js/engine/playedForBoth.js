@@ -1,11 +1,12 @@
-// Played for Both — pick 2 to 5 sides (clubs, or a country) and name everyone
-// who turned out for at least two of them.
+// Played for Both — pick sides (clubs, or a country) and name everyone who
+// turned out for ALL of them.
 //
-// "At least two" rather than "all of them" is not a softening: a player who
-// turned out for four *specific* top clubs barely exists. Zero random 4-club
-// combinations in 60,000 draws produced a single shared player, and 3 clubs
-// worked 0.3% of the time. At two sides the rule is identical to "played for
-// both", and it is what lets the mode scale to five.
+// Sampling n clubs at random and hoping they intersect does not work: zero
+// random 4-club combinations in 60,000 draws shared a single player. So boards
+// are built incrementally instead - each club is drawn from those that keep the
+// shared set non-empty - which makes any size reachable, and is the same filter
+// the hand-picker uses. The most-travelled player in the data turned out for 30
+// clubs, so that, not an arbitrary number, is the ceiling.
 //
 // The count is OUR count, from this dataset, not football's. It is hidden by
 // default and offered as a clue, and a guess we cannot place is answered
@@ -49,12 +50,17 @@ export const countryChoices = (db) =>
 export function compatibleClubs(db, chosenKeys) {
   const all = clubChoices(db);
   if (!chosenKeys.length) return all;
-  const pool = new Set();
-  for (const k of chosenKeys)
-    for (const id of db.byClub.get(k) || []) pool.add(id);
+  // whoever has played for everything chosen so far
+  let shared = null;
+  for (const k of chosenKeys) {
+    const set = db.byClub.get(k) || new Set();
+    shared = shared === null ? new Set(set) : new Set([...shared].filter(id => set.has(id)));
+    if (!shared.size) return [];
+  }
   return all.filter(c => {
     if (chosenKeys.includes(c.key)) return false;
-    for (const id of db.byClub.get(c.key) || []) if (pool.has(id)) return true;
+    const set = db.byClub.get(c.key) || new Set();
+    for (const id of shared) if (set.has(id)) return true;   // at least one survives
     return false;
   });
 }
@@ -62,13 +68,16 @@ export function compatibleClubs(db, chosenKeys) {
 const setOf = (db, side) =>
   side.kind === 'country' ? db.byNation.get(side.key) : db.byClub.get(side.key);
 
-/** Players belonging to at least two of the given sides, best known first. */
+/** Players who turned out for EVERY one of the given sides, best known first. */
 export function solve(db, sides) {
-  const count = new Map();
-  for (const s of sides)
-    for (const id of setOf(db, s) || []) count.set(id, (count.get(id) || 0) + 1);
-  return [...count].filter(([, n]) => n >= 2).map(([id]) => id)
-    .sort((a, b) => db.byId.get(b).fame - db.byId.get(a).fame);
+  if (!sides.length) return [];
+  let acc = null;
+  for (const s of sides) {
+    const set = setOf(db, s) || new Set();
+    acc = acc === null ? new Set(set) : new Set([...acc].filter(id => set.has(id)));
+    if (!acc.size) return [];
+  }
+  return [...acc].sort((a, b) => db.byId.get(b).fame - db.byId.get(a).fame);
 }
 
 export function build(db, sides) {
@@ -77,16 +86,30 @@ export function build(db, sides) {
 }
 
 export function generate(db, rnd, n = 2) {
-  if (n === 'any') n = 2 + Math.floor(rnd() * (MAX_DEAL - 1));   // surprise me
+  if (n === 'any') n = 2 + Math.floor(rnd() * 3);
   const clubs = clubChoices(db);
   const countries = countryChoices(db);
   if (clubs.length < n) return null;
-  for (let attempt = 0; attempt < 300; attempt++) {
-    const sides = shuffle(rnd, clubs).slice(0, n);
-    // a country occasionally stands in for one club (Netherlands x AC Milan)
-    if (n === 2 && countries.length && rnd() < 0.3) sides[1] = pick(rnd, countries);
+
+  for (let attempt = 0; attempt < 400; attempt++) {
+    // Grow the board one club at a time, always from clubs that keep someone
+    // in the shared set. Sampling n clubs blind essentially never intersects.
+    const keys = [pick(rnd, clubs).key];
+    let ok = true;
+    while (keys.length < n) {
+      const next = compatibleClubs(db, keys);
+      if (!next.length) { ok = false; break; }
+      keys.push(pick(rnd, next).key);
+    }
+    if (!ok) continue;
+
+    let sides = keys.map(k => clubs.find(c => c.key === k));
+    if (n === 2 && countries.length && rnd() < 0.25) {
+      const alt = [sides[0], pick(rnd, countries)];
+      if (solve(db, alt).length >= MIN_ON_BOARD) sides = alt;
+    }
     const ids = solve(db, sides);
-    if (ids.length >= MIN_ON_BOARD && ids.length <= MAX_ON_BOARD)
+    if (ids.length >= (n > 2 ? 1 : MIN_ON_BOARD) && ids.length <= MAX_ON_BOARD)
       return { mode: 'played-for-both', sides, answerIds: ids, count: ids.length };
   }
   return null;
@@ -99,7 +122,7 @@ export function generate(db, rnd, n = 2) {
 export function figureFor(db, player, side) {
   if (side.kind === 'country') return player.caps ? `${player.caps} caps` : null;
   const t = player.clubTotals && player.clubTotals[side.key];
-  if (t && t.apps) return `${t.apps}`;
+  if (t && t.apps != null) return `${t.apps}`;
   const sum = player.clubs.filter(c => c.club === side.key)
                           .reduce((a, c) => a + (c.apps || 0), 0);
   return sum ? `${sum}` : null;
@@ -121,7 +144,8 @@ export function guess(db, idx, game, raw) {
   if (game.found.has(p.id)) return { status: 'already', player: p };
   if (b.answerIds.includes(p.id)) return { status: 'hit', player: p };
   const on = sidesFor(db, p, b.sides);
-  if (on.length === 1) return { status: 'one-side', player: p, side: on[0] };
+  const missing = b.sides.filter(s => !on.includes(s));
+  if (on.length) return { status: 'partial', player: p, on, missing };
   return { status: 'none', player: p };
 }
 
@@ -129,7 +153,7 @@ export function apply(game, res) {
   if (res.status === 'hit') {
     game.found.add(res.player.id);
     if (game.found.size === game.board.count) game.finished = true;
-  } else if (res.status === 'one-side' || res.status === 'none') {
+  } else if (res.status === 'partial' || res.status === 'none') {
     // A name we do not hold is a gap in our data, not a bad guess, so
     // 'unknown' never costs a life.
     game.lives--;
@@ -143,6 +167,7 @@ export const explain = (r) => ({
   unknown:    'No player by that name found',
   already:    `${r.player?.name} is already on the board`,
   hit:        `${r.player?.name} ✓`,
-  'one-side': `${r.player?.name} only played for ${r.side?.label} — you need two`,
+  partial:    `${r.player?.name} played for ${r.on?.map(s => s.label).join(' and ')}, but not `
+              + `${r.missing?.map(s => s.label).join(' or ')}`,
   none:       `${r.player?.name} played for none of these`,
 }[r.status]);
