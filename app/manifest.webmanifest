@@ -1,6 +1,6 @@
 {
-  "name": "Footy — football quiz",
-  "short_name": "Footy",
+  "name": "60th Minute — football quiz",
+  "short_name": "60th Minute",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

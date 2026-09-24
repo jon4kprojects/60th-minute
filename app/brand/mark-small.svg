@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="60th Minute">
+  <defs><linearGradient id="g" x1="8" y1="14" x2="112" y2="108" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFB020"/><stop offset=".45" stop-color="#FF7A18"/><stop offset="1" stop-color="#FF3D2E"/></linearGradient></defs>
+  <rect width="120" height="120" rx="27" fill="#08090C"/>
+  <text x="60" y="63" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+        font-size="64" font-weight="820" letter-spacing="-4" fill="#F7F8FA">60<tspan fill="url(#g)">′</tspan></text>
+</svg>

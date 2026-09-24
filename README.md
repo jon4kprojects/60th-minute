@@ -1,6 +1,7 @@
-# Footy — football quiz prototype
+# 60th Minute — football quiz prototype
 
-A dynamically-generated football quiz. Questions are built from structured
+A dynamically-generated football quiz. Brand assets live in `app/brand/`
+(open `app/brand/index.html` for the sheet). Questions are built from structured
 player data at runtime, not written by hand. Works fully offline once installed.
 
 ## Playing offline

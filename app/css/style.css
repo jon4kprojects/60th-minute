@@ -23,6 +23,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   padding:var(--pad);position:relative;z-index:1}
 .loading{margin:auto;color:var(--muted)}
 
+.logo{display:block;width:250px;max-width:74%;height:auto;margin:10px 0 2px}
 h1{font-size:40px;letter-spacing:-1.6px;font-weight:820;margin:14px 0 2px;line-height:1}
 h1 em{font-style:normal;background:linear-gradient(94deg,var(--hot),var(--amber));
   -webkit-background-clip:text;background-clip:text;color:transparent}

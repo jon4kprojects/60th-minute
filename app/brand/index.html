@@ -1,0 +1,89 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>60th Minute — brand</title>
+<style>
+:root{--bg:#08090c;--card:#14161d;--line:#252935;--fg:#f7f8fa;--muted:#8b93a3;
+ --hot:#ff7a18;--hot2:#ff3d2e;--amber:#ffb020;
+ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);margin:0;padding:40px 24px 80px}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;
+ background:radial-gradient(60% 34% at 50% -6%,rgba(255,122,24,.26),transparent 70%),
+ radial-gradient(44% 26% at 92% 6%,rgba(255,61,46,.16),transparent 70%)}
+.wrap{max-width:860px;margin:0 auto;position:relative}
+.kick{font-size:11px;font-weight:750;letter-spacing:.18em;text-transform:uppercase;color:var(--hot)}
+h1{font-size:34px;font-weight:820;letter-spacing:-1.2px;margin:6px 0 34px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);
+ margin:40px 0 12px;font-weight:700}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:34px;
+ display:flex;align-items:center;justify-content:center;gap:40px;flex-wrap:wrap}
+.panel.light{background:#f2f3f6;border-color:#dfe2e8}
+.sizes{display:flex;align-items:flex-end;gap:28px;flex-wrap:wrap}
+.sz{text-align:center}
+.sz small{display:block;color:var(--muted);font-size:11px;margin-top:9px}
+.swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
+.sw{border-radius:13px;padding:15px;border:1px solid var(--line);min-height:92px;
+ display:flex;flex-direction:column;justify-content:flex-end}
+.sw b{font-size:13px} .sw span{font-size:11px;opacity:.72;font-variant-numeric:tabular-nums}
+.type{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px}
+.type .r{display:flex;align-items:baseline;gap:18px;padding:13px 0;border-bottom:1px solid var(--line)}
+.type .r:last-child{border:0}
+.type .l{color:var(--muted);font-size:11px;min-width:128px;text-transform:uppercase;letter-spacing:.1em}
+.grad{background:linear-gradient(94deg,var(--hot),var(--amber));-webkit-background-clip:text;
+ background-clip:text;color:transparent}
+.note{color:var(--muted);font-size:13px;line-height:1.6;margin-top:10px;max-width:620px}
+.appicon{width:104px;height:104px;border-radius:23px;background:#08090c;border:1px solid var(--line);
+ display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.appicon::before{content:'';position:absolute;inset:0;
+ background:radial-gradient(70% 55% at 50% 0%,rgba(255,122,24,.34),transparent 72%)}
+</style></head><body><div class="wrap">
+<div class="kick">Brand</div><h1>60th Minute</h1>
+
+<h2>Primary lockup</h2>
+<div class="panel"><img src="./logo-lockup.svg" width="380" alt=""></div>
+
+<h2>Stacked</h2>
+<div class="panel"><img src="./logo-stacked.svg" width="240" alt=""></div>
+
+<h2>On light</h2>
+<div class="panel light"><img src="./logo-lockup.svg" width="330" alt=""></div>
+
+<h2>The mark at size</h2>
+<div class="panel"><div class="sizes">
+  <div class="sz"><img src="./mark.svg" width="112"><small>112</small></div>
+  <div class="sz"><img src="./mark.svg" width="72"><small>72</small></div>
+  <div class="sz"><img src="./mark.svg" width="48"><small>48</small></div>
+  <div class="sz"><img src="./mark.svg" width="32"><small>32</small></div>
+  <div class="sz"><img src="./mark.svg" width="20"><small>20 · favicon</small></div>
+  <div class="sz"><div class="appicon"><img src="./mark.svg" width="74" style="position:relative"></div><small>app icon</small></div>
+</div></div>
+<div class="note">The ring is a match clock: 60 minutes of 90 is exactly two thirds swept,
+so the gap is the half hour still to play. The prime after the 60 is how football writes
+a minute — it does the work of saying what this is without a ball or a pitch in sight.</div>
+
+<h2>Colour</h2>
+<div class="swatches">
+  <div class="sw" style="background:linear-gradient(135deg,#FFB020,#FF7A18 45%,#FF3D2E);color:#1a0a02">
+    <b>Gradient</b><span>FFB020 → FF7A18 → FF3D2E</span></div>
+  <div class="sw" style="background:#FF7A18;color:#1a0a02"><b>Hot</b><span>#FF7A18</span></div>
+  <div class="sw" style="background:#FF3D2E;color:#1a0a02"><b>Flare</b><span>#FF3D2E</span></div>
+  <div class="sw" style="background:#FFB020;color:#1a0a02"><b>Amber</b><span>#FFB020</span></div>
+  <div class="sw" style="background:#08090c"><b>Base</b><span>#08090C</span></div>
+  <div class="sw" style="background:#14161D"><b>Surface</b><span>#14161D</span></div>
+  <div class="sw" style="background:#F7F8FA;color:#08090c"><b>Paper</b><span>#F7F8FA</span></div>
+  <div class="sw" style="background:#8B93A3;color:#08090c"><b>Muted</b><span>#8B93A3</span></div>
+</div>
+
+<h2>Type</h2>
+<div class="type">
+  <div class="r"><span class="l">Wordmark</span>
+    <span style="font-size:32px;font-weight:820;letter-spacing:-1.4px"><span class="grad">60TH</span>
+    <span style="font-weight:650;letter-spacing:5px;font-size:23px">MINUTE</span></span></div>
+  <div class="r"><span class="l">Display / 820</span><span style="font-size:30px;font-weight:820;letter-spacing:-1.2px">Career Path</span></div>
+  <div class="r"><span class="l">Heading / 740</span><span style="font-size:23px;font-weight:740;letter-spacing:-.5px">Who has more goals?</span></div>
+  <div class="r"><span class="l">Kicker / 750</span><span style="font-size:11px;font-weight:750;letter-spacing:.18em;color:var(--hot)">FOOTBALL 501</span></div>
+  <div class="r"><span class="l">Body / 400</span><span style="font-size:15px">Name a player who turned out for the club.</span></div>
+  <div class="r"><span class="l">Numerals / 800</span><span style="font-size:30px;font-weight:800;font-variant-numeric:tabular-nums" class="grad">501 · 180 · 60′</span></div>
+</div>
+<div class="note">System UI stack throughout — SF Pro on your iPhone, Roboto on Android.
+Nothing to download, which matters when the app has to work with no signal.</div>
+</div></body></html>

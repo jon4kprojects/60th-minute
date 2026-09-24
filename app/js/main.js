@@ -25,8 +25,7 @@ function home() {
   const offline = navigator.serviceWorker?.controller;
   app.innerHTML = '';
   app.append(el(`<div>
-    <div class="kicker">Football Quiz</div>
-    <h1>Foot<em>y</em></h1>
+    <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
     <div class="tag">${DB.players.length.toLocaleString()} players · 1940s to today</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
