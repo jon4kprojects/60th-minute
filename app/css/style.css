@@ -174,3 +174,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
   color:var(--muted)}
 .pk.on{border-color:var(--hot);background:rgba(255,122,24,.12);color:var(--fg)}
 .dataver{color:#5c6474;font-size:11px;margin:-18px 0 22px;letter-spacing:.2px}
+.scopenote{background:var(--card2);border:1px solid var(--line);border-radius:11px;
+  padding:12px 14px;margin:14px 0 4px;font-size:13px;color:var(--fg);line-height:1.45}
+.scopenote span{color:var(--muted);font-size:11px}
+.scopeline{font-size:11px;color:var(--muted);margin:-10px 0 14px;letter-spacing:.2px}

@@ -89,7 +89,26 @@ Every rule in `transform.py` is there because live data broke without it:
   removed Giggs, Scholes and Totti, who are exactly the names Football 501
   needs. Career Path filters for 3+ clubs at generation time instead.
 
-### A caveat on appearance figures
+### Verified club figures
+
+Club appearance and goal figures come from Wikipedia club player lists via
+`ingest/clubstats.py`, because they publish ONE definition - total competitive
+appearances - where Wikidata mixes league and all-competition figures per
+player. Measured against Wikidata across 286 overlapping players, ours came out
+at a ratio of 0.69 (quartiles 0.66-0.73): a definitional gap, not noise. But
+some were simply wrong - Drogba read 28 Chelsea appearances against a real 381.
+
+`ingest/verify_clubs.py` is the gate. Each club's parse must reproduce its known
+all-time record holder and figure within 2% or the club is withheld, so
+Football 501 only offers clubs whose numbers we can defend. 15 of 20 attempted
+clubs pass; Manchester United, Leeds, Tottenham, West Ham and Leicester are
+currently withheld rather than shipped wrong.
+
+Known gap: club rosters come from Wikipedia and are far larger than our
+Wikidata-derived player set, so a club's record holder may not be nameable.
+Ron Harris made 795 for Chelsea and is absent from our players.
+
+### An older caveat on appearance figures
 
 Wikidata mixes conventions: Giggs is recorded at 672 for Manchester United (all
 competitions) while Gerrard is at 504 for Liverpool (league only). The app

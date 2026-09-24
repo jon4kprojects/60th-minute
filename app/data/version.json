@@ -1,7 +1,8 @@
 {
-  "version": "1.7.7a9355",
+  "version": "1.8.e72046",
   "built": "2026-09-24",
-  "sha256": "7a9355fa3a3e",
+  "sha256": "e72046f825e0",
   "players": 5686,
-  "bytes": 3603135
+  "bytes": 3652162,
+  "verifiedClubs": 15
 }

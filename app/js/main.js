@@ -65,6 +65,7 @@ function setup501() {
       <label>Club</label>
       <select id="club">${clubs.map(c =>
         `<option value="${esc(c.name)}">${esc(shortClub(c.name))} — ${c.n} players</option>`).join('')}</select>
+      ${DB.statScope ? `<div class="scopenote">${esc(DB.statScope)}<br><span>Source: ${esc(DB.statSource||'')}</span></div>` : ''}
       <label>Score by</label>
       <div class="chips" id="metric">${Object.entries(F501.METRICS).map(([k, m]) =>
         `<button class="chip ${k === metric ? 'on' : ''}" data-m="${k}">${m.label}</button>`).join('')}</div>
@@ -92,6 +93,7 @@ function play501(msg = null, tone = '') {
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button>
       <span>${esc(shortClub(G.club))} · ${m.label}</span></div>
+    ${DB.statScope ? `<div class="scopeline">${esc(DB.statScope)}</div>` : ''}
     <div class="board">${G.players.map((p, i) => {
       const last = p.history[p.history.length - 1];
       return `<div class="seat ${i === G.turn && !G.finished ? 'active' : ''}">

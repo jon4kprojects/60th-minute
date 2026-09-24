@@ -17,10 +17,19 @@ export const METRICS = {
   apps:  { label: 'appearances', short: 'apps' },
 };
 
+/**
+ * Only clubs with verified figures are playable here.
+ *
+ * Our unverified numbers are inconsistently scoped - mostly league appearances,
+ * some all-competitions, and a few simply wrong (Drogba read 28 for Chelsea
+ * against a real 381). A quiz cannot defend that, so an unverified club is not
+ * offered at all. A short club list beats one wrong answer.
+ */
 export function clubsWithDepth(db, min = 15) {
   const c = new Map();
   for (const p of db.players)
     for (const s of p.clubs) {
+      if (db.verifiedClubs.size && !db.verifiedClubs.has(s.club)) continue;
       if (!c.has(s.club)) c.set(s.club, { name: s.club, country: s.country, n: 0 });
       c.get(s.club).n++;
     }
@@ -38,10 +47,20 @@ export function createGame({ club, metric, names, checkoutLow = -10 }) {
   };
 }
 
-// Total for the club across every spell there (Henry had two Arsenal spells).
-export const valueFor = (player, clubName, metric) =>
-  player.clubs.filter(c => c.club === clubName)
-              .reduce((a, c) => a + (c[metric] || 0), 0);
+/**
+ * The player's figure for this club.
+ *
+ * Prefers the verified club total, which is already a whole-career figure for
+ * that club. Falling back to summing spells is only for unverified clubs -
+ * summing a verified total across two spells made Drogba read 328 Chelsea
+ * goals instead of 164.
+ */
+export const valueFor = (player, clubName, metric) => {
+  const t = player.clubTotals && player.clubTotals[clubName];
+  if (t) return t[metric] || 0;
+  return player.clubs.filter(c => c.club === clubName)
+                     .reduce((a, c) => a + (c[metric] || 0), 0);
+};
 
 /**
  * Resolve a typed name into a scored turn. Returns a result describing what

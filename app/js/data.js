@@ -60,6 +60,11 @@ export async function loadData() {
   const players = raw.players.filter(p => p.name && p.clubs && p.clubs.length);
   DB = {
     version: raw.version || 'bundled',
+    // Clubs whose figures come from a single source with one definition.
+    // Number-based modes offer these and nothing else.
+    verifiedClubs: new Set(raw.verifiedClubs || []),
+    statScope: raw.statScope || null,
+    statSource: raw.statSource || null,
     built: raw.built || null,
     players,
     byId: new Map(players.map(p => [p.id, p])),
