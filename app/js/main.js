@@ -57,6 +57,8 @@ function setup501() {
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
 
   const draw = () => {
+    const hasLg = club ? F501.hasLeagueSplit(DB, club) : false;
+    if (!hasLg) scope = 'all';
     const shown = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
     app.innerHTML = '';
     app.append(el(`<div>
@@ -76,8 +78,18 @@ function setup501() {
       <div class="chips" id="metric">${Object.entries(F501.METRICS).map(([k, m]) =>
         `<button class="chip ${k === metric ? 'on' : ''}" data-m="${k}">${m.label}</button>`).join('')}</div>
 
-      ${DB.statSource ? `<div class="scopenote" style="margin-top:14px">Counts <b>all competitions</b> — league, cups and Europe.<br>
-        <span>${esc(DB.statSource)}</span></div>` : ''}
+      <label>Competitions</label>
+      <div class="chips" id="scope">
+        <button class="chip ${scope === 'all' ? 'on' : ''}" data-s="all">all competitions</button>
+        <button class="chip ${scope === 'league' ? 'on' : ''} ${hasLg ? '' : 'off'}"
+          data-s="league" ${hasLg ? '' : 'disabled'}>league only</button>
+      </div>
+      <div class="scopenote" style="margin-top:12px">
+        ${scope === 'league'
+          ? 'League appearances and goals only — no cups, no Europe.'
+          : 'All competitions — league, cups and Europe.'}<br>
+        <span>${scope === 'league' ? 'Wikipedia player infoboxes' : 'Wikipedia club player lists'} (CC BY-SA)</span>
+      </div>
 
       <label>Players</label>
       <div class="chips" id="np">${[2,3,4].map(i =>
@@ -118,6 +130,13 @@ function setup501() {
     };
     if (filter) paintClubs();
 
+    app.querySelectorAll('#scope .chip').forEach(c => c.onclick = () => {
+      if (c.disabled) return;
+      scope = c.dataset.s;
+      const names = [...app.querySelectorAll('.nm')].map(i => i.value);
+      draw();
+      [...app.querySelectorAll('.nm')].forEach((i, k) => { if (names[k]) i.value = names[k]; });
+    });
     app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; draw(); });
     app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => { n = +c.dataset.n; draw(); });
     document.getElementById('go').onclick = () => {

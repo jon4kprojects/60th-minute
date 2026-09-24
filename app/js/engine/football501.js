@@ -17,12 +17,11 @@ export const METRICS = {
   apps:  { label: 'appearances', short: 'apps' },
 };
 
-// Competition scope is a separate axis from the statistic. The engine supports
-// it, but the UI does not currently offer it: of 19 verified clubs, ZERO
-// publish a usable league breakdown. Most English club lists give
-// Starts/Subs/Total for all competitions and no league column at all. The code
-// stays because it costs nothing and is ready the day a source with league
-// figures arrives - the UI should not advertise a choice we cannot honour.
+// Competition scope is a separate axis from the statistic, and both sides are
+// sourced. All-competition totals come from club player lists; league-only
+// figures come from each player's own infobox, where the club rows are league
+// appearances by convention (Wikipedia annotates it as such). Club lists alone
+// could not back this - none of them break league out.
 export const SCOPES = {
   all:    { label: 'all competitions', suffix: '' },
   league: { label: 'league only',      suffix: 'lg' },
@@ -30,18 +29,9 @@ export const SCOPES = {
 export const statKey = (metric, scope) =>
   scope === 'league' ? 'lg' + metric[0].toUpperCase() + metric.slice(1) : metric;
 
-/** Does this club publish league-only figures? */
-export function hasLeagueSplit(db, clubName) {
-  let seen = 0, withLeague = 0;
-  for (const p of db.players) {
-    const t = p.clubTotals && p.clubTotals[clubName];
-    if (!t) continue;
-    seen++;
-    if (t.lgApps != null || t.lgGoals != null) withLeague++;
-    if (seen >= 25) break;
-  }
-  return seen > 0 && withLeague / seen > 0.6;
-}
+/** Does this club have enough league-only coverage to offer the choice? */
+export const hasLeagueSplit = (db, clubName) =>
+  db.leagueScopeClubs ? db.leagueScopeClubs.has(clubName) : false;
 
 /**
  * Only clubs with verified figures are playable here.

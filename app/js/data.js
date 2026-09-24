@@ -63,6 +63,8 @@ export async function loadData() {
     // Clubs whose figures come from a single source with one definition.
     // Number-based modes offer these and nothing else.
     verifiedClubs: new Set(raw.verifiedClubs || []),
+    // clubs where enough players have league-only figures to offer the choice
+    leagueScopeClubs: new Set(raw.leagueScopeClubs || []),
     statScope: raw.statScope || null,
     statSource: raw.statSource || null,
     built: raw.built || null,

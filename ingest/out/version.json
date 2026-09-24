@@ -1,8 +1,9 @@
 {
-  "version": "1.10.0389c0",
+  "version": "1.14.8ab808",
   "built": "2026-09-24",
-  "sha256": "0389c0057ea9",
+  "sha256": "8ab808203f75",
   "players": 5690,
-  "bytes": 6172495,
-  "verifiedClubs": 19
+  "bytes": 6648426,
+  "verifiedClubs": 19,
+  "leagueScopeClubs": 19
 }

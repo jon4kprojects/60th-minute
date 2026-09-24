@@ -190,17 +190,21 @@ A name we do not hold is a gap in our data, not a bad guess, so it never costs
 a life. Club prominence is measured by how many well-known players a club has,
 not the squad average — averaging punishes big clubs for having deep squads.
 
-### Why there is no league / all-competitions choice
+### League vs all competitions, from two sources
 
-It was built, then removed: of the 19 verified clubs, **zero** publish a usable
-league breakdown. Most English club lists give Starts/Subs/Total for all
-competitions and no league column at all; only West Ham's and Leicester's pages
-split it out, and West Ham only for 39 players of 188. A permanently disabled
-control is worse than none, so the app states the scope plainly instead.
+| Scope | Source | Henry at Arsenal |
+|---|---|---|
+| All competitions | Wikipedia **club player lists** | 377 apps, 228 goals |
+| League only | Wikipedia **player infoboxes** | 258 apps, 175 goals |
 
-`SCOPES` and `statKey()` remain in `football501.js` because they cost nothing
-and are ready the day a source with league figures arrives. The UI should not
-advertise a choice the data cannot honour.
+Club lists alone could not back this - none break league out. But every
+player's own infobox lists club rows as league appearances by convention, and
+Wikipedia annotates them ("League Appearances and goals ONLY").
+`ingest/leaguestats.py` fetches 50 pages per request, so the dataset costs
+about 114 calls. Coverage is 80%+ at all 19 verified clubs.
+
+`merge_leaguestats.py` only accepts an infobox club the player is already known
+to have played for, so a mislinked row cannot invent a spell.
 
 ## Guarding against lost facts
 
