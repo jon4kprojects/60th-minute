@@ -13,8 +13,8 @@ export const MAX_VISIT = 180;
 // Gerrard at 504 for Liverpool, which is league only). Claiming league-only
 // precision we do not have would be the fastest way to lose players' trust.
 export const METRICS = {
-  apps:  { label: 'appearances', short: 'apps' },
   goals: { label: 'goals',       short: 'goals' },
+  apps:  { label: 'appearances', short: 'apps' },
 };
 
 export function clubsWithDepth(db, min = 15) {

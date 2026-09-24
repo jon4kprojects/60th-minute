@@ -1,7 +1,7 @@
 import { loadData } from './data.js';
 import { MODES, buildRound } from './engine/index.js';
 import { mulberry32, seedFrom } from './rng.js';
-import { buildNameIndex } from './names.js';
+import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 
 const app = document.getElementById('app');
@@ -47,7 +47,7 @@ function home() {
 /* ---------------- Football 501 ---------------- */
 function setup501() {
   const clubs = F501.clubsWithDepth(DB, 15);
-  let metric = 'apps', n = 2;
+  let metric = 'goals', n = 2;
   const draw = () => {
     app.innerHTML = '';
     app.append(el(`<div>
@@ -100,7 +100,9 @@ function play501(msg = null, tone = '') {
     : `
       <div class="turnline"><b>${esc(G.players[G.turn].name)}</b> to throw — name a ${esc(shortClub(G.club))} player</div>
       <div class="entry"><input id="guess" placeholder="Player name" autocomplete="off"
-        autocapitalize="words" spellcheck="false"><button class="btn" id="submit">Score</button></div>
+        autocapitalize="words" autocorrect="off" spellcheck="false"
+        ><button class="btn" id="submit">Score</button></div>
+      <div class="sugg" id="sugg" hidden></div>
       ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}`}
     <ul class="log">${G.players.flatMap(p => p.history.map((h, i) => ({ p, h, i })))
       .sort((a, b) => b.i - a.i).slice(0, 12).map(({ p, h }) =>
@@ -112,7 +114,41 @@ function play501(msg = null, tone = '') {
   const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
   const inp = document.getElementById('guess'), sub = document.getElementById('submit');
   if (inp) {
-    inp.focus();
+    const box = document.getElementById('sugg');
+    let list = [], hi = -1;
+
+    const paint = () => {
+      if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      box.innerHTML = list.map((p, i) => `
+        <button class="sg ${i === hi ? 'on' : ''}" data-i="${i}">
+          <span class="n">${esc(p.name)}</span>
+          <span class="m">${esc([p.nationality, p.position].filter(Boolean).join(' · '))}</span>
+        </button>`).join('');
+      box.querySelectorAll('.sg').forEach(b => b.onclick = () => {
+        inp.value = list[b.dataset.i].name;   // fill, do not fire: a mis-tap
+        list = []; hi = -1; paint();          // would burn a turn irreversibly
+        inp.focus();
+      });
+    };
+
+    inp.oninput = () => {
+      list = suggest(NAMES, inp.value, 6); hi = -1; paint();
+    };
+    inp.onkeydown = (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!list.length) return;
+        e.preventDefault();
+        hi = e.key === 'ArrowDown'
+          ? (hi + 1) % list.length
+          : (hi - 1 + list.length) % list.length;
+        paint();
+      } else if (e.key === 'Enter') {
+        if (hi >= 0 && list[hi]) { inp.value = list[hi].name; list = []; hi = -1; paint(); return; }
+        go();
+      } else if (e.key === 'Escape') { list = []; hi = -1; paint(); }
+    };
+
     const go = () => {
       const v = inp.value.trim(); if (!v) return;
       const r = F501.scoreEntry(DB, NAMES, G, v);
@@ -121,7 +157,7 @@ function play501(msg = null, tone = '') {
       play501(F501.explain(r, F501.METRICS[G.metric].label), tone);
     };
     sub.onclick = go;
-    inp.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    inp.focus();
   }
 }
 

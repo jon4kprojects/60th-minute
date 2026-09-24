@@ -1,6 +1,6 @@
 // Precache everything on install so the game works with no network at all.
 // Bump CACHE on every deploy: the old cache is deleted on activate.
-const CACHE = 'm60-v3';
+const CACHE = 'm60-v4';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css',

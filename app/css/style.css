@@ -139,3 +139,17 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
 .chip{border:1.5px solid var(--line);border-radius:99px;padding:9px 15px;font-size:14px;font-weight:620}
 .chip.on{border-color:var(--hot);background:rgba(255,122,24,.1);color:var(--fg)}
+
+/* 501 typeahead. Suggestions are drawn from every player in the dataset, never
+   filtered to the chosen club — filtering would print the team sheet on screen
+   and there would be no game left. It only helps you spell a name you already
+   had in mind. */
+.sugg{margin-top:8px;border:1px solid var(--line);border-radius:13px;overflow:hidden;
+  background:var(--card2)}
+.sg{display:flex;align-items:baseline;gap:10px;width:100%;text-align:left;padding:13px 15px;
+  border-bottom:1px solid var(--line)}
+.sg:last-child{border-bottom:0}
+.sg .n{font-weight:650;font-size:16px}
+.sg .m{margin-left:auto;color:var(--muted);font-size:12px}
+.sg.on,.sg:active{background:rgba(255,122,24,.13)}
+.sg.on .n{color:var(--amber)}

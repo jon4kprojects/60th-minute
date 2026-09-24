@@ -71,11 +71,24 @@ total. Over 180 scores nothing, mirroring the maximum visit in darts, so the
 skill is finding a usable number rather than the most famous name. Checkout
 window is 0 to -10; going past it busts the turn.
 
-Input is deliberately free text with **no autocomplete**: the game is recalling
-players from memory, and offering the club's squad list would hand it over. The
-matcher in `app/js/names.js` scores candidates so accents, surnames-only and
-phone-keyboard typos all resolve ("scholse" finds Paul Scholes), and an
-ambiguous surname prefers whoever actually played for the club.
+Typing gives suggestions after two characters, matched against **every player
+in the dataset and never filtered to the chosen club**. Filtering would print
+the team sheet on screen and there would be no game left; matching globally
+only helps you spell a name you had already thought of.
+
+Ranking in `app/js/names.js` puts a surname above a whole-name prefix, because
+a single typed token is nearly always a surname - "gigi riva" also starts with
+"gig" and used to be offered above Ryan Giggs. Typo tolerance is a fallback
+tier only: applied eagerly it suggested Neto for "nedv".
+
+On submit, resolution is separate from suggestion and *does* use the club as
+context, giving roster members a bonus. Without it "trezeguet" resolved to the
+Egyptian winger rather than David Trezeguet, who scored 138 for Juventus. This
+is invisible to the player - it only picks the sensible reading.
+
+Scoring defaults to **goals**. With appearances roughly a third of every big
+squad is over the 180 cap and scores nothing, which stalls the round; on goals
+about 99% of players with data fall under it.
 
 365 clubs have enough depth to play. Manchester United holds 154 players, 98 of
 whom score under 180.

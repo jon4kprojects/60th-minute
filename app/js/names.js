@@ -65,7 +65,11 @@ export function lookup(idx, query, prefer = null) {
       else if (n.includes(q)) sc = 55 + (q.length / n.length) * 10;
       else if (q.includes(n)) sc = 50;
     }
-    if (sc > 0) scored.push({ p, sc });
+    // Context bonus: the prompt says "name a Juventus player", so a player who
+    // actually turned out for them beats a slightly better string match who did
+    // not. Without this, "trezeguet" resolved to the Egyptian winger rather
+    // than David Trezeguet, who scored 171 for Juventus.
+    if (sc > 0) scored.push({ p, sc: sc + (prefer && prefer.has(p.id) ? 12 : 0) });
   }
   if (!scored.length) return null;
 
@@ -74,4 +78,42 @@ export function lookup(idx, query, prefer = null) {
   if (best.length === 1) return best[0];
   if (prefer) { const m = best.filter(p => prefer.has(p.id)); if (m.length) return m[0]; }
   return best.slice().sort((a, b) => b.fame - a.fame)[0];
+}
+
+/**
+ * Typeahead suggestions.
+ *
+ * Deliberately matched against the WHOLE player list, never the chosen club's
+ * squad. Filtering to the club would turn the dropdown into an answer key —
+ * you would type one letter and read the team sheet. Matching globally means
+ * it only helps you spell a name you had already thought of.
+ */
+export function suggest(idx, query, limit = 6) {
+  const q = norm(query);
+  if (q.length < 2) return [];
+  const solid = [], loose = [];
+  for (const { p, n } of idx.all) {
+    const parts = n.split(' ');
+    const last = parts[parts.length - 1];
+    let sc = 0;
+    // A single token is almost always a surname, so it must outrank a
+    // whole-name prefix: "gigi riva" also startsWith("gig"), and used to be
+    // offered above Ryan Giggs.
+    const multi = q.includes(' ');
+    if (n === q) sc = 100;
+    else if (last === q) sc = 94;                            // "pirlo" -> Andrea Pirlo
+    else if (multi && n.startsWith(q)) sc = 92;              // "ryan gig" -> Ryan Giggs
+    else if (last.startsWith(q)) sc = 86;                    // "gig" -> Giggs
+    else if (!multi && n.startsWith(q)) sc = 80;             // "gigi" -> Gigi Riva
+    else if (parts.some(t => t.startsWith(q))) sc = 76;
+    else if (n.includes(q)) sc = 64;
+    if (sc) { solid.push({ p, sc }); continue; }
+    // Typo tolerance is a fallback only. Applied eagerly it suggests Neto for
+    // "nedv" and Kubo for "bufo", which is worse than showing nothing.
+    if (q.length >= 4 && Math.min(dist(last, q), dist(n, q)) <= 2) loose.push({ p, sc: 40 });
+  }
+  const by = (a, b) => (b.sc - a.sc) || (b.p.fame - a.p.fame);
+  const out = solid.sort(by);
+  if (out.length < limit) out.push(...loose.sort(by).slice(0, limit - out.length));
+  return out.slice(0, limit).map(x => x.p);
 }
