@@ -133,12 +133,23 @@ for pid, p in players.items():
             if s["start"] and not RESERVE_RE.search(s["club"] or "")
             and ((s["apps"] or 0) >= MIN_SPELL_APPS or no_stats)]
     keep.sort(key=lambda s: (s["start"], s["end"] or s["start"]))
+    # Wikidata often carries SEVERAL statements for one spell at a club - one
+    # counting league games, another all competitions. Summing them double-counts
+    # (O'Leary came out at 1116 Arsenal appearances against a true 722), so
+    # overlapping spells take the larger figure and only genuinely separate
+    # spells are added together.
     path = []
     for s in keep:
-        if path and path[-1]["clubId"] == s["clubId"]:
-            path[-1]["apps"]  = (path[-1]["apps"] or 0) + (s["apps"] or 0)
-            path[-1]["goals"] = (path[-1]["goals"] or 0) + (s["goals"] or 0)
-            path[-1]["end"]   = s["end"] or path[-1]["end"]
+        prev = path[-1] if path else None
+        if prev and prev["clubId"] == s["clubId"]:
+            overlaps = (s["start"] or 0) <= (prev["end"] or prev["start"] or 0)
+            if overlaps:
+                prev["apps"]  = max(prev["apps"] or 0, s["apps"] or 0)
+                prev["goals"] = max(prev["goals"] or 0, s["goals"] or 0)
+            else:
+                prev["apps"]  = (prev["apps"] or 0) + (s["apps"] or 0)
+                prev["goals"] = (prev["goals"] or 0) + (s["goals"] or 0)
+            prev["end"] = max(s["end"] or 0, prev["end"] or 0) or prev["end"]
             continue
         path.append(dict(s))
     if len(path) < MIN_CLUBS:
