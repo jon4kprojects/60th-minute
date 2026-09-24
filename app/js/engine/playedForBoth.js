@@ -16,7 +16,21 @@ import { lookup } from '../names.js';
 import { shortClub } from '../data.js';
 
 const MIN_ON_BOARD = 5, MAX_ON_BOARD = 20;
-const CLUB_PROM = 8, NAT_PROM = 10;
+// Two different jobs, two different bars.
+//
+// Dealing at random should produce a board people recognise, so it draws from
+// clubs with several well-known players. Hand-picking should not be limited
+// that way: Norwich has 67 players in the data and exactly one famous name, and
+// was being withheld even though Norwich x West Ham is a 12-player board with
+// Bellamy, Parker, Martin Peters and Dean Ashton on it. If you can name the
+// club, you should be able to pick it.
+const DEAL_PROM = 3;      // well-known players needed to be dealt at random
+const PICK_SQUAD = 8;     // players we hold, to be pickable by hand. Low on
+                          // purpose: the compatible-club filter already
+                          // guarantees a non-empty board, so the only question
+                          // is whether we hold enough of a club to be useful.
+const NAT_PROM = 10;
+const RESERVES = /U-?\d\d|Under-?\d|\bReserves?\b|\bAcademy\b|\bYouth\b|\bII$|\sB$/i;
 export const LIVES = 3;
 
 // No fixed cap on hand-picked sides. The data does not impose one - Sebastian
@@ -30,10 +44,17 @@ export const BIG_BOARD = 40;
 // the board reliably exceeds MAX_ON_BOARD and cannot be dealt at all.
 export const MAX_DEAL = 6;
 
+/** Clubs recognisable enough to appear in a randomly dealt board. */
 export const clubChoices = (db) =>
-  [...db.clubProm].filter(([, n]) => n >= CLUB_PROM)
+  [...db.clubProm].filter(([c, n]) => n >= DEAL_PROM && !RESERVES.test(c))
     .sort((a, b) => b[1] - a[1])
     .map(([c]) => ({ key: c, label: shortClub(c), kind: 'club' }));
+
+/** Clubs you can choose by hand - a far wider net, sorted alphabetically. */
+export const pickableClubs = (db) =>
+  [...db.byClub].filter(([c, ids]) => ids.size >= PICK_SQUAD && !RESERVES.test(c))
+    .map(([c]) => ({ key: c, label: shortClub(c), kind: 'club' }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
 export const countryChoices = (db) =>
   [...db.natProm].filter(([, n]) => n >= NAT_PROM)
@@ -55,8 +76,8 @@ export const countryChoices = (db) =>
  * same "guess the one player". Knowing the resulting size lets the generator
  * prefer clubs that keep several in play.
  */
-export function nextOptions(db, chosenKeys) {
-  const all = clubChoices(db);
+export function nextOptions(db, chosenKeys, pool) {
+  const all = pool || clubChoices(db);
   let shared = null;
   for (const k of chosenKeys) {
     const set = db.byClub.get(k) || new Set();
@@ -75,8 +96,8 @@ export function nextOptions(db, chosenKeys) {
   return out;
 }
 
-export function compatibleClubs(db, chosenKeys) {
-  const all = clubChoices(db);
+export function compatibleClubs(db, chosenKeys, pool) {
+  const all = pool || clubChoices(db);
   if (!chosenKeys.length) return all;
   // whoever has played for everything chosen so far
   let shared = null;

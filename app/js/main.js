@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b31.a108485';
+const BUILD = 'b32.0f1d281';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -370,7 +370,7 @@ function setupPFB() {
 
   const draw = () => {
     const picked = chosen.filter(Boolean);
-    const more = PFB.compatibleClubs(DB, picked);
+    const more = PFB.compatibleClubs(DB, picked, clubs);
     const boardSize = picked.length >= 2
       ? PFB.build(DB, picked.map(k => clubs.find(c => c.key === k))).count : 0;
 
