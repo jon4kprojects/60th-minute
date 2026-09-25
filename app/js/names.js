@@ -63,7 +63,9 @@ export function lookup(idx, query, prefer = null) {
       const d = Math.min(d1, d2);
       if (d <= 2) sc = 80 - d * 8;                       // typo tolerance
       else if (n.includes(q)) sc = 55 + (q.length / n.length) * 10;
-      else if (q.includes(n)) sc = 50;
+      // A very short name must not swallow a long query: "Jo" is contained in
+      // "john terry", and was being returned for it.
+      else if (n.length >= 4 && q.includes(n)) sc = 50;
     }
     // Context bonus: the prompt says "name a Juventus player", so a player who
     // actually turned out for them beats a slightly better string match who did

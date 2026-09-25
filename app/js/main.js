@@ -1,11 +1,11 @@
 import { loadData, checkForUpdate, filterDB } from './data.js';
 import { MODES, buildRound } from './engine/index.js';
 import { mulberry32, seedFrom } from './rng.js';
-import { buildNameIndex, suggest } from './names.js';
+import { buildNameIndex, suggest, lookup } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b35.88f2033';
+const BUILD = 'b36.b7796dc';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -105,6 +105,8 @@ const store = {
   markToday() { try { localStorage.setItem('daily', today()); } catch {} },
   get era() { try { return +localStorage.getItem('era') || 0; } catch { return 0; } },
   set era(v) { try { localStorage.setItem('era', v || 0); } catch {} },
+  get hard() { try { return localStorage.getItem('hard') === '1'; } catch { return false; } },
+  set hard(v) { try { localStorage.setItem('hard', v ? '1' : ''); } catch {} },
   get topFive() { try { return localStorage.getItem('t5') === '1'; } catch { return false; } },
   set topFive(v) { try { localStorage.setItem('t5', v ? '1' : ''); } catch {} },
   get hideInstall() { try { return localStorage.getItem('noinstall') === '1'; } catch { return false; } },
@@ -156,6 +158,15 @@ function home() {
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="pfb">
       <div class="t">Played for Both</div><div class="b">Clear the board · name every shared player</div></button>
+    <label>Answers</label>
+    <div class="chips" id="hard">
+      <button class="chip ${store.hard ? '' : 'on'}" data-h="0">Multiple choice</button>
+      <button class="chip ${store.hard ? 'on' : ''}" data-h="1">Type the name</button>
+    </div>
+    <div class="tag" style="margin:8px 2px 18px">${store.hard
+      ? 'Career Path and Who Am I? give you no options \u2014 you name the player yourself. Worth more.'
+      : 'Four names to choose from on Career Path and Who Am I?'}</div>
+
     ${Object.entries(MODES).map(([k, m]) => `
       <button class="card" data-go="${k}"><div class="t">${m.title}</div><div class="b">${m.blurb}</div></button>`).join('')}
     <button class="card" data-go="daily">
@@ -166,6 +177,9 @@ function home() {
     ${installHint()}
     ${store.best ? `<div class="tag" style="margin-top:10px">Best score ${store.best}</div>` : ''}
   </div>`));
+  app.querySelectorAll('#hard .chip').forEach(c => c.onclick = () => {
+    store.hard = c.dataset.h === '1'; home();
+  });
   app.querySelectorAll('#era .chip').forEach(c => c.onclick = () => {
     store.era = +c.dataset.y; refreshView(); home();
   });
@@ -668,14 +682,21 @@ function render() {
     if (!S.answered && S.revealed < q.clues.length)
       body += `<button class="btn ghost" id="clue">Another clue (−1 point)</button>`;
   }
-  if (q.mode === 'higher-lower') {
+  const typed = store.hard && (q.mode === 'career-path' || q.mode === 'who-am-i') && !S.answered;
+  if (typed) {
+    body += `<div class="entry"><input id="guess" placeholder="Name the player" autocomplete="off"
+      autocapitalize="words" autocorrect="off" spellcheck="false"
+      ><button class="btn" id="submit">Answer</button></div>
+      <div class="sugg" id="sugg" hidden></div>
+      <button class="btn ghost" id="giveup">Give up</button>`;
+  } else if (q.mode === 'higher-lower') {
     body += `<div class="hl">
       <button class="opt" data-id="${q.options[0].id}">${esc(q.options[0].label)}
         <span class="sub">${esc(q.options[0].sub)} · ${esc(q.options[0].clubs)}</span></button>
       <div class="vs">OR</div>
       <button class="opt" data-id="${q.options[1].id}">${esc(q.options[1].label)}
         <span class="sub">${esc(q.options[1].sub)} · ${esc(q.options[1].clubs)}</span></button></div>`;
-  } else {
+  } else if (!S.answered || !store.hard) {
     body += `<div class="opts">${q.options.map(o =>
       `<button class="opt" data-id="${o.id}">${esc(o.label)}</button>`).join('')}</div>`;
   }
@@ -686,14 +707,64 @@ function render() {
   const clue = document.getElementById('clue');
   if (clue) clue.onclick = () => { S.revealed++; render(); };
   app.querySelectorAll('.opt').forEach(b => b.onclick = () => answer(b.dataset.id));
+
+  const gi = document.getElementById('guess');
+  if (gi) {
+    const box = document.getElementById('sugg'), sub = document.getElementById('submit');
+    let list = [], hi = -1;
+    const paint = () => {
+      if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      box.innerHTML = list.map((p, i) => `
+        <button class="sg ${i === hi ? 'on' : ''}" data-i="${i}">
+          <span class="n">${esc(p.name)}</span>
+          <span class="m">${esc([p.nationality, p.position].filter(Boolean).join(' · '))}</span>
+        </button>`).join('');
+      // Suggestions are drawn from every player, never from the four options,
+      // so they help you spell a name without hinting at the answer.
+      box.querySelectorAll('.sg').forEach(x => x.onclick = () => {
+        gi.value = list[x.dataset.i].name; list = []; hi = -1; paint(); gi.focus();
+      });
+    };
+    const go = () => {
+      const v = gi.value.trim(); if (!v) return;
+      const p = lookup(VNAMES, v);
+      // Someone excluded by the current filters should be told so, not silently
+      // mismatched onto whoever happened to be the closest remaining name.
+      const full = lookup(NAMES, v);
+      const filteredOut = full && (!p || p.id !== full.id) && !VIEW.byId.has(full.id);
+      answer(p && !filteredOut ? p.id : '__none__',
+             filteredOut ? { name: full.name, excluded: true } : (p ? p.name : v));
+    };
+    gi.oninput = () => { list = suggest(VNAMES, gi.value, 6); hi = -1; paint(); };
+    gi.onkeydown = (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!list.length) return; e.preventDefault();
+        hi = e.key === 'ArrowDown' ? (hi + 1) % list.length : (hi - 1 + list.length) % list.length;
+        paint();
+      } else if (e.key === 'Enter') {
+        if (hi >= 0 && list[hi]) { gi.value = list[hi].name; list = []; hi = -1; paint(); return; }
+        go();
+      }
+    };
+    sub.onclick = go;
+    const gu = document.getElementById('giveup');
+    if (gu) gu.onclick = () => answer('__none__', null);
+    gi.focus();
+  }
 }
 
-function answer(id) {
+function answer(id, typedName) {
   if (S.answered) return;
   S.answered = true;
   const q = S.qs[S.i];
   const ok = id === q.answerId;
-  const pts = q.mode === 'who-am-i' ? (ok ? Math.max(1, q.clues.length - S.revealed + 1) : 0) : ok ? 3 : 0;
+  const wasTyped = typedName !== undefined;
+  // Naming a player unaided is harder than picking one of four, so it pays more
+  const base = wasTyped ? 5 : 3;
+  const pts = q.mode === 'who-am-i'
+    ? (ok ? Math.max(1, q.clues.length - S.revealed + 1) + (wasTyped ? 2 : 0) : 0)
+    : ok ? base : 0;
   if (ok) { S.score += pts; S.streak++; S.best = Math.max(S.best, S.streak); } else S.streak = 0;
   app.querySelectorAll('.opt').forEach(b => {
     const isAns = b.dataset.id === q.answerId;
@@ -704,9 +775,14 @@ function answer(id) {
     }
     b.onclick = null;
   });
+  const missNote = !ok && wasTyped && typedName
+    ? (typedName.excluded
+        ? `${typedName.name} is not in this round \u2014 your filters rule him out. `
+        : `You said ${typedName}. `)
+    : '';
   app.append(el(`<div>
     <div class="fb"><div class="h ${ok ? 'ok' : 'no'}">${ok ? `Correct  +${pts}` : 'Not quite'}</div>
-    <div class="d">${esc(q.fact)}</div></div>
+    <div class="d">${esc(missNote)}${esc(q.fact)}</div></div>
     <button class="btn" id="next">${S.i + 1 >= S.qs.length ? 'See result' : 'Next'}</button></div>`));
   document.getElementById('next').onclick = () => {
     if (S.i + 1 >= S.qs.length) return results();
