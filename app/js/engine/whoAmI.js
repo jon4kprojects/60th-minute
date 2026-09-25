@@ -19,16 +19,26 @@ export function generate(db, rnd, opts = {}) {
   const pool = opts.pool || eligible(db);
   for (let attempt = 0; attempt < 40; attempt++) {
     const p = weightedPick(rnd, pool, FAME_W);
+
+    // Ordered vague to giveaway. With four names on screen the early clues are
+    // enough; with none, you need to reach the clubs, so the ladder carries
+    // more of them and more detail along the way.
     const clues = [];
     if (p.nationality) clues.push(`Nationality: ${p.nationality}`);
     if (p.position)    clues.push(`Position: ${p.position}`);
     const e = era(p); if (e) clues.push(e);
+    if (p.caps)        clues.push(`Won ${p.caps} caps`);
     if (p.careerApps)  clues.push(`Around ${Math.round(p.careerApps / 50) * 50} career club appearances`);
-    // clubs revealed last, least famous first, so the giveaway comes latest
-    const clubs = p.clubs.slice().sort((x, y) => (x.apps || 0) - (y.apps || 0));
-    for (const c of clubs.slice(0, 3)) clues.push(`Played for ${shortClub(c.club)}`);
     if (p.careerGoals) clues.push(`Scored roughly ${Math.round(p.careerGoals / 25) * 25} career club goals`);
-    if (clues.length < 4) continue;
+
+    // Clubs last, least famous first, so the giveaway comes latest. All of
+    // them, with years - without multiple choice the career IS the answer.
+    const clubs = p.clubs.slice().sort((x, y) => (x.apps || 0) - (y.apps || 0));
+    for (const c of clubs) {
+      const yrs = c.from ? ` (${c.from}${c.to && c.to !== c.from ? '\u2013' + c.to : ''})` : '';
+      clues.push(`Played for ${shortClub(c.club)}${yrs}`);
+    }
+    if (clues.length < 5) continue;
 
     const dec = db.players.filter(d => d.id !== p.id && db.tier(d) === db.tier(p) &&
       d.mid != null && p.mid != null && Math.abs(d.mid - p.mid) <= 7);
@@ -40,7 +50,7 @@ export function generate(db, rnd, opts = {}) {
       clues,
       options: shuffle(rnd, [p, ...sample(rnd, dec, 3)]).map(o => ({ id: o.id, label: o.name })),
       answerId: p.id,
-      fact: `${p.name} — ${p.clubs.map(c => shortClub(c.club)).join(' → ')}`,
+      fact: `${p.name} \u2014 ${p.clubs.map(c => shortClub(c.club)).join(' \u2192 ')}`,
     };
   }
   return null;

@@ -5,7 +5,7 @@ import { buildNameIndex, suggest, lookup } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b36.b7796dc';
+const BUILD = 'b37.4264041';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -659,7 +659,10 @@ function start(mode) {
   const keys = daily ? Object.keys(MODES) : [mode];
   const qs = buildRound(VIEW, rnd, keys, 10);
   if (!qs.length) { app.innerHTML = '<div class="loading">Could not build a round.</div>'; return; }
-  S = { qs, i: 0, score: 0, streak: 0, best: 0, daily, revealed: 1, answered: false };
+  // With no names on screen a single clue is unusable, so hard mode starts
+  // three rungs up the ladder.
+  S = { qs, i: 0, score: 0, streak: 0, best: 0, daily,
+        revealed: store.hard ? 3 : 1, answered: false };
   render();
 }
 
@@ -786,7 +789,7 @@ function answer(id, typedName) {
     <button class="btn" id="next">${S.i + 1 >= S.qs.length ? 'See result' : 'Next'}</button></div>`));
   document.getElementById('next').onclick = () => {
     if (S.i + 1 >= S.qs.length) return results();
-    S.i++; S.revealed = 1; S.answered = false; render();
+    S.i++; S.revealed = store.hard ? 3 : 1; S.answered = false; render();
   };
   window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 }
