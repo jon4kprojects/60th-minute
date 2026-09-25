@@ -14,10 +14,18 @@ import json, os, re, unicodedata, collections
 
 OUT = os.path.join(os.path.dirname(__file__), "out")
 
+# Club-type words must all come off, in every language a Wikipedia title might
+# use them: our dataset calls it "Real Madrid Club de Futbol" while infoboxes
+# link "Real Madrid CF", and stripping only the abbreviation matched 1 of 234.
+CLUB_WORDS = re.compile(
+    r"\b(f\.?c\.?|a\.?f\.?c\.?|s\.?c\.?|c\.?f\.?|fc|afc|cf|sc|ac|as|ss|ssc|rc|cd|ud|sv|vfb|vfl|"
+    r"club|clube|futbol|futebol|football|calcio|sport|sportiv[ao]|deportivo|atletico|"
+    r"de|del|la|le|les|el|of|the)\b", re.I)
+
 def norm(s):
     s = unicodedata.normalize('NFD', s)
     s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
-    s = re.sub(r'\b(f\.?c\.?|a\.?f\.?c\.?|s\.?c\.?|c\.?f\.?|fc|afc)\b', ' ', s.lower())
+    s = CLUB_WORDS.sub(' ', s.lower())
     return re.sub(r'[^a-z0-9 ]', ' ', s).replace('  ', ' ').strip()
 
 data = json.load(open(os.path.join(OUT, "dataset.json")))
@@ -54,7 +62,21 @@ for p in data["players"]:
         tot[club] += 1
         if "lgApps" in t: cov[club] += 1
 
-data["leagueScopeClubs"] = sorted(c for c in ver if tot[c] and cov[c] / tot[c] >= 0.5)
+# Clubs playable in Football 501. A verified club has all-competition figures
+# from its player list AND league figures from infoboxes, so it offers both
+# scopes. Everything else with solid infobox coverage is playable on league
+# figures alone - that is what lets Real Madrid and Dortmund in, rather than
+# scraping a hundred more club pages.
+allcov = collections.Counter(); alltot = collections.Counter()
+for p in data["players"]:
+    for club, t in (p.get("clubTotals") or {}).items():
+        alltot[club] += 1
+        if "lgApps" in t: allcov[club] += 1
+
+league_ok = sorted(c for c in alltot
+                   if alltot[c] >= 12 and allcov[c] / alltot[c] >= 0.5)
+data["leagueScopeClubs"] = league_ok
+data["playableClubs"] = sorted(set(league_ok) | ver)
 open(os.path.join(OUT, "dataset.json"), "w").write(json.dumps(data, separators=(",", ":")))
 
 print(f"players given league figures: {players_hit:,}")

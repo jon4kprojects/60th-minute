@@ -30,23 +30,29 @@ export const SCOPES = {
 export const statKey = (metric, scope) =>
   scope === 'league' ? 'lg' + metric[0].toUpperCase() + metric.slice(1) : metric;
 
-/** Does this club have enough league-only coverage to offer the choice? */
+/** Does this club have league figures? */
 export const hasLeagueSplit = (db, clubName) =>
   db.leagueScopeClubs ? db.leagueScopeClubs.has(clubName) : false;
 
+/** Does this club have cross-checked all-competition figures? */
+export const hasAllComps = (db, clubName) =>
+  db.verifiedClubs ? db.verifiedClubs.has(clubName) : false;
+
 /**
- * Only clubs with verified figures are playable here.
+ * Clubs playable here, on figures we can defend.
  *
- * Our unverified numbers are inconsistently scoped - mostly league appearances,
- * some all-competitions, and a few simply wrong (Drogba read 28 for Chelsea
- * against a real 381). A quiz cannot defend that, so an unverified club is not
- * offered at all. A short club list beats one wrong answer.
+ * Two tiers. A verified club has all-competition totals cross-checked against
+ * its record holder, plus league figures - both scopes. Everything else is
+ * playable on league figures from player infoboxes, which are a single
+ * consistent convention. Raw Wikidata figures are still never used: they mix
+ * scopes and are sometimes simply wrong (Drogba read 28 for Chelsea, not 381).
  */
 export function clubsWithDepth(db, min = 15) {
+  const pool = db.playableClubs && db.playableClubs.size ? db.playableClubs : db.verifiedClubs;
   const c = new Map();
   for (const p of db.players)
     for (const s of p.clubs) {
-      if (db.verifiedClubs.size && !db.verifiedClubs.has(s.club)) continue;
+      if (pool.size && !pool.has(s.club)) continue;
       if (!c.has(s.club)) c.set(s.club, { name: s.club, country: s.country, n: 0 });
       c.get(s.club).n++;
     }

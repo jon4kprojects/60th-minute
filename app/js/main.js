@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b32.0f1d281';
+const BUILD = 'b33.256135d';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -192,8 +192,12 @@ function setup501() {
   };
 
   const draw = () => {
-    const hasLg = club ? F501.hasLeagueSplit(DB, club) : false;
+    const hasLg  = club ? F501.hasLeagueSplit(DB, club) : false;
+    const hasAll = club ? F501.hasAllComps(DB, club) : true;
+    // A club without cross-checked all-competition figures plays on league
+    // figures; one without league figures plays on all-competitions.
     if (!hasLg) scope = 'all';
+    else if (!hasAll) scope = 'league';
     const shown = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
     beginPaint('setup501');
     app.innerHTML = '';
@@ -216,7 +220,8 @@ function setup501() {
 
       <label>Competitions</label>
       <div class="chips" id="scope">
-        <button class="chip ${scope === 'all' ? 'on' : ''}" data-s="all">All competitions</button>
+        <button class="chip ${scope === 'all' ? 'on' : ''} ${hasAll ? '' : 'off'}"
+          data-s="all" ${hasAll ? '' : 'disabled'}>All competitions</button>
         <button class="chip ${scope === 'league' ? 'on' : ''} ${hasLg ? '' : 'off'}"
           data-s="league" ${hasLg ? '' : 'disabled'}>League only</button>
       </div>

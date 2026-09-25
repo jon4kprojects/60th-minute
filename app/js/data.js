@@ -65,6 +65,9 @@ export async function loadData() {
     verifiedClubs: new Set(raw.verifiedClubs || []),
     // clubs where enough players have league-only figures to offer the choice
     leagueScopeClubs: new Set(raw.leagueScopeClubs || []),
+    // Clubs Football 501 can offer at all: verified ones have all-competition
+    // figures too, the rest are playable on league figures alone.
+    playableClubs: new Set(raw.playableClubs || raw.verifiedClubs || []),
     statScope: raw.statScope || null,
     statSource: raw.statSource || null,
     built: raw.built || null,
