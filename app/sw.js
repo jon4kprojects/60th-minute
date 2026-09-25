@@ -8,14 +8,14 @@
 //   app shell (html/js/css)  network-first, fall back to cache when offline
 //   dataset + icons          cache-first, since they are large and versioned
 //
-const CACHE = 'm60-b40.4dd1a5e';
+const CACHE = 'm60-b41.2f16ded';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './css/style.css',
   './js/main.js', './js/data.js', './js/rng.js', './js/names.js',
   './js/engine/index.js', './js/engine/careerPath.js',
   './js/engine/higherLower.js', './js/engine/whoAmI.js',
-  './js/engine/football501.js', './js/engine/playedForBoth.js',
+  './js/engine/football501.js', './js/engine/playedForBoth.js', './js/engine/chain.js',
   './data/dataset.json', './data/version.json',
   './icon-180.png', './icon-512.png', './icon-64.png', './icon-32.png',
   './brand/logo-lockup.svg', './brand/mark.svg',

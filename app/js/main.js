@@ -4,8 +4,9 @@ import { mulberry32, seedFrom } from './rng.js';
 import { buildNameIndex, suggest, lookup } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
+import * as CHN from './engine/chain.js';
 
-const BUILD = 'b40.4dd1a5e';
+const BUILD = 'b41.2f16ded';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -112,7 +113,7 @@ const store = {
 };
 
 let DB = null, NAMES = null, S = null, G = null;
-let VIEW = null, VNAMES = null;
+let VIEW = null, VNAMES = null, VCLUBS = null, CH = null;
 
 // Filters are applied to the data BEFORE a round starts, not inside each
 // generator: a generator that forgot one would quietly serve players the
@@ -120,6 +121,7 @@ let VIEW = null, VNAMES = null;
 function refreshView() {
   VIEW = filterDB(DB, { since: store.era || null, topFive: store.topFive });
   VNAMES = buildNameIndex(VIEW.players);
+  VCLUBS = CHN.buildClubIndex(VIEW);
 }
 
 // Installed to a home screen there is no browser back button, and on Android
@@ -154,6 +156,8 @@ function home() {
       : 'Every player we hold, whenever they started \u2014 back to the 1940s.'}</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
+    <button class="card hot" data-go="chain">
+      <div class="t">The Chain</div><div class="b">Club, player, club, player · 2–4 players</div></button>
     <button class="card hot" data-go="pfb">
       <div class="t">Played for Both</div><div class="b">Clear the board · name every shared player</div></button>
     ${Object.entries(MODES).map(([k, m]) => `
@@ -182,6 +186,7 @@ function home() {
     const g = b.dataset.go;
     if (g === 'f501') return setup501();
     if (g === 'pfb') return setupPFB();
+    if (g === 'chain') return setupChain();
     start(g);
   });
 }
@@ -389,6 +394,127 @@ function play501(msg = null, tone = '') {
     sub.onclick = go;
     inp.focus();
   }
+}
+
+/* ---------------- The Chain ---------------- */
+function setupChain() {
+  enterScreen();
+  let n = 2;
+  const draw = () => {
+    beginPaint('setupChain');
+    app.innerHTML = '';
+    app.append(el(`<div>
+      <div class="bar"><button class="back" id="back">‹ Back</button></div>
+      <div class="kicker">The Chain</div>
+      <h1 style="font-size:30px">Keep the <em>chain</em> going</h1>
+      <div class="tag">A player is on the table. Name a club he turned out for, and
+        someone else who played there. That man is now on the table. Nothing twice.
+        Three lives each.</div>
+      <label>Players</label>
+      <div class="chips" id="np">${[2,3,4].map(i =>
+        `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
+      <div id="names">${Array.from({length: n}, (_, i) =>
+        `<input class="nm" placeholder="Player ${i+1}" style="margin-top:8px">`).join('')}</div>
+      <button class="btn" id="go">Play</button></div>`));
+    document.getElementById('back').onclick = home;
+    app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => {
+      const keep = [...app.querySelectorAll('.nm')].map(i => i.value);
+      n = +c.dataset.n; draw();
+      [...app.querySelectorAll('.nm')].forEach((i, k) => { if (keep[k]) i.value = keep[k]; });
+    });
+    document.getElementById('go').onclick = () => {
+      const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);
+      const starter = CHN.pickStarter(VIEW, mulberry32((Math.random() * 2 ** 32) >>> 0));
+      if (!starter) return alert('Could not start a chain with these filters.');
+      CH = CHN.createGame({ names, starter });
+      playChain();
+    };
+  };
+  draw();
+}
+
+function playChain(msg = null, tone = '') {
+  const g = CH, cur = g.current;
+  beginPaint('playChain');
+  app.innerHTML = '';
+  app.append(el(`<div>
+    <div class="bar"><button class="back" id="back">‹ Back</button>
+      <span>${g.chain.filter(x => x.kind === 'player').length} in the chain</span></div>
+
+    <div class="board">${g.players.map((p, i) => `
+      <div class="seat ${i === g.turn && !g.finished ? 'active' : ''} ${p.out ? 'out' : ''}">
+        <div class="nm">${esc(p.name)}</div>
+        <div class="sc" style="font-size:15px">${p.out ? 'out'
+          : '●'.repeat(p.lives) + '○'.repeat(CHN.LIVES - p.lives)}</div></div>`).join('')}</div>
+
+    <div class="onthetable">
+      <div class="lbl">On the table</div>
+      <div class="who">${esc(cur.name)}</div>
+      <div class="sub">${esc([cur.nationality, cur.position].filter(Boolean).join(' · '))}</div>
+    </div>
+
+    ${g.finished ? `
+      <div class="fb"><div class="h ok">${g.winner != null
+        ? esc(g.players[g.winner].name) + ' wins' : 'Chain over'}</div>
+        <div class="d">${g.chain.filter(x => x.kind === 'player').length} players linked.</div></div>
+      <button class="btn" id="again">New chain</button>
+      <button class="btn ghost" id="home2">Home</button>`
+    : `
+      <div class="turnline"><b>${esc(g.players[g.turn].name)}</b> — name a club
+        ${esc(cur.name)} played for, and someone else from it</div>
+      <input id="clubin" placeholder="Club" autocomplete="off" autocorrect="off" spellcheck="false">
+      <div class="sugg" id="clubsug" hidden></div>
+      <input id="playin" placeholder="Another player from that club" style="margin-top:8px"
+        autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false">
+      <div class="sugg" id="playsug" hidden></div>
+      <button class="btn" id="submit">Link</button>
+      ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}`}
+
+    <ul class="chainlist">${g.chain.slice().reverse().map(x => x.kind === 'club'
+      ? `<li class="cl">${esc(shortClub(x.name))}</li>`
+      : `<li class="pl">${esc(x.name)}${x.by ? `<span class="by">${esc(x.by)}</span>` : ''}</li>`).join('')}</ul>
+  </div>`));
+
+  document.getElementById('back').onclick = home;
+  const ag = document.getElementById('again'); if (ag) ag.onclick = setupChain;
+  const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
+
+  const ci = document.getElementById('clubin');
+  if (!ci) return;
+  const pi = document.getElementById('playin');
+
+  // Suggestions cover every club and every player, never only the valid ones -
+  // narrowing them would hand over both halves of the answer.
+  const wire = (input, box, source) => {
+    input.oninput = () => {
+      const t = input.value.trim().toLowerCase();
+      const hits = t.length < 2 ? [] : source(t).slice(0, 6);
+      if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      box.innerHTML = hits.map(h =>
+        `<button class="sg" data-v="${esc(h)}"><span class="n">${esc(h)}</span></button>`).join('');
+      box.querySelectorAll('.sg').forEach(b => b.onclick = () => {
+        input.value = b.dataset.v; box.hidden = true; box.innerHTML = '';
+        (input === ci ? pi : input).focus();
+      });
+    };
+  };
+  wire(ci, document.getElementById('clubsug'),
+    (t) => VCLUBS.keys.map(shortClub).filter(c => c.toLowerCase().includes(t)).sort((a, b) => a.length - b.length));
+  wire(pi, document.getElementById('playsug'),
+    (t) => suggest(VNAMES, t, 6).map(p => p.name));
+
+  const go = () => {
+    const c = ci.value.trim(), p = pi.value.trim();
+    if (!c || !p) return;
+    const r = CHN.submit(VIEW, VNAMES, VCLUBS, g, c, p);
+    const txt = CHN.explain(r, g.current);
+    CHN.apply(g, r);
+    playChain(txt, r.status === 'ok' ? 'ok' : 'no');
+  };
+  document.getElementById('submit').onclick = go;
+  pi.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  ci.focus();
 }
 
 /* ---------------- Played for Both ---------------- */

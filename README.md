@@ -165,6 +165,22 @@ about 99% of players with data fall under it.
 365 clubs have enough depth to play. Manchester United holds 154 players, 98 of
 whom score under 180.
 
+## The Chain
+
+A player is on the table. Name a club he turned out for and someone else who
+played there; that man is now on the table. Nothing may be named twice, and
+three lives each.
+
+    Henry -> [Arsenal] -> Bergkamp -> [Ajax] -> Kluivert -> [Barcelona] -> ...
+
+Validation runs in both directions: the club must be one the player on the
+table actually played for, AND the new player must have played for that same
+club. Checking only one half would let the chain drift somewhere neither of
+them ever was.
+
+Suggestions cover every club and every player rather than only the valid ones -
+narrowing them would hand over both halves of the answer at once.
+
 ## Played for Both
 
 Pick 2-5 sides, at random or by hand, and name everyone who turned out for
