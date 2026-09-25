@@ -5,7 +5,7 @@ import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b34.c08ab11';
+const BUILD = 'b35.88f2033';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -142,14 +142,16 @@ function home() {
     <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
     <div class="tag">${DB.players.length.toLocaleString()} players · 1940s to today</div>
     <div class="dataver">Build ${esc(BUILD)} · data ${esc(DB.version)}</div>
-    <label style="margin-top:2px">Who's in</label>
+    <label style="margin-top:2px">Career started</label>
     <div class="chips" id="era">
-      ${[[0,'Everyone'],[1990,'From 1990'],[2000,'From 2000'],[2010,'From 2010']].map(([y,l]) =>
+      ${[[0,'Any'],[1990,'1990 or later'],[2000,'2000 or later'],[2010,'2010 or later']].map(([y,l]) =>
         `<button class="chip ${store.era === y ? 'on' : ''}" data-y="${y}">${l}</button>`).join('')}
     </div>
     <div class="tag" style="margin:8px 2px 18px">${store.era
-      ? `${VIEW.players.length.toLocaleString()} players who started out in ${store.era} or later.`
-      : 'Every player we hold, back to the 1940s.'}</div>
+      ? `Only players whose <b>first season at a club</b> was ${store.era} or later \u2014
+         ${VIEW.players.length.toLocaleString()} of them. A career that began earlier is out, however
+         long it ran.`
+      : 'Every player we hold, whenever they started \u2014 back to the 1940s.'}</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="pfb">
