@@ -5,7 +5,7 @@ import { buildNameIndex, suggest, lookup } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b37.4264041';
+const BUILD = 'b38.e288988';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -662,7 +662,7 @@ function start(mode) {
   // With no names on screen a single clue is unusable, so hard mode starts
   // three rungs up the ladder.
   S = { qs, i: 0, score: 0, streak: 0, best: 0, daily,
-        revealed: store.hard ? 3 : 1, answered: false };
+        revealed: store.hard ? 3 : 1, answered: false, showedNames: false };
   render();
 }
 
@@ -690,8 +690,16 @@ function render() {
     body += `<div class="entry"><input id="guess" placeholder="Name the player" autocomplete="off"
       autocapitalize="words" autocorrect="off" spellcheck="false"
       ><button class="btn" id="submit">Answer</button></div>
-      <div class="sugg" id="sugg" hidden></div>
-      <button class="btn ghost" id="giveup">Give up</button>`;
+      <div class="sugg" id="sugg" hidden></div>`;
+    // A way down from hard mode without leaving it: take the four names, and
+    // the answer is worth what it would have been in multiple choice.
+    if (S.showedNames) {
+      body += `<div class="opts">${q.options.map(o =>
+        `<button class="opt" data-id="${o.id}">${esc(o.label)}</button>`).join('')}</div>`;
+    } else {
+      body += `<button class="btn ghost" id="shownames">Show the four names (\u22122 points)</button>`;
+    }
+    body += `<button class="btn ghost" id="giveup">Give up</button>`;
   } else if (q.mode === 'higher-lower') {
     body += `<div class="hl">
       <button class="opt" data-id="${q.options[0].id}">${esc(q.options[0].label)}
@@ -709,6 +717,8 @@ function render() {
   document.getElementById('back').onclick = home;
   const clue = document.getElementById('clue');
   if (clue) clue.onclick = () => { S.revealed++; render(); };
+  const sn = document.getElementById('shownames');
+  if (sn) sn.onclick = () => { S.showedNames = true; render(); };
   app.querySelectorAll('.opt').forEach(b => b.onclick = () => answer(b.dataset.id));
 
   const gi = document.getElementById('guess');
@@ -763,10 +773,12 @@ function answer(id, typedName) {
   const q = S.qs[S.i];
   const ok = id === q.answerId;
   const wasTyped = typedName !== undefined;
-  // Naming a player unaided is harder than picking one of four, so it pays more
-  const base = wasTyped ? 5 : 3;
+  // Naming a player unaided is harder than picking one of four, so it pays
+  // more - unless the four names were taken, in which case it pays the same.
+  const unaided = (wasTyped || store.hard) && !S.showedNames;
+  const base = unaided ? 5 : 3;
   const pts = q.mode === 'who-am-i'
-    ? (ok ? Math.max(1, q.clues.length - S.revealed + 1) + (wasTyped ? 2 : 0) : 0)
+    ? (ok ? Math.max(1, q.clues.length - S.revealed + 1) + (unaided ? 2 : 0) : 0)
     : ok ? base : 0;
   if (ok) { S.score += pts; S.streak++; S.best = Math.max(S.best, S.streak); } else S.streak = 0;
   app.querySelectorAll('.opt').forEach(b => {
@@ -789,7 +801,7 @@ function answer(id, typedName) {
     <button class="btn" id="next">${S.i + 1 >= S.qs.length ? 'See result' : 'Next'}</button></div>`));
   document.getElementById('next').onclick = () => {
     if (S.i + 1 >= S.qs.length) return results();
-    S.i++; S.revealed = store.hard ? 3 : 1; S.answered = false; render();
+    S.i++; S.revealed = store.hard ? 3 : 1; S.answered = false; S.showedNames = false; render();
   };
   window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 }
