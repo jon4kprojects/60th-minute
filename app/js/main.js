@@ -6,7 +6,7 @@ import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 
-const BUILD = 'b41.2f16ded';
+const BUILD = 'b42.40ab97b';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -157,7 +157,7 @@ function home() {
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="chain">
-      <div class="t">The Chain</div><div class="b">Club, player, club, player · 2–4 players</div></button>
+      <div class="t">The Chain</div><div class="b">Player, team, player, team · 2–4 players</div></button>
     <button class="card hot" data-go="pfb">
       <div class="t">Played for Both</div><div class="b">Clear the board · name every shared player</div></button>
     ${Object.entries(MODES).map(([k, m]) => `
@@ -407,9 +407,9 @@ function setupChain() {
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
       <div class="kicker">The Chain</div>
       <h1 style="font-size:30px">Keep the <em>chain</em> going</h1>
-      <div class="tag">A player is on the table. Name a club he turned out for, and
-        someone else who played there. That man is now on the table. Nothing twice.
-        Three lives each.</div>
+      <div class="tag">A team is on the table. Name someone who played for it, and
+        another team they played for \u2014 that team is next. Clubs and countries both
+        count. Nothing twice, 60 seconds a turn, three lives each.</div>
       <label>Players</label>
       <div class="chips" id="np">${[2,3,4].map(i =>
         `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
@@ -427,30 +427,67 @@ function setupChain() {
       const starter = CHN.pickStarter(VIEW, mulberry32((Math.random() * 2 ** 32) >>> 0));
       if (!starter) return alert('Could not start a chain with these filters.');
       CH = CHN.createGame({ names, starter });
+      resetChainClock();
       playChain();
     };
   };
   draw();
 }
 
+let CHDEADLINE = 0, CHCLOCK = null;
+
+/** Every turn gets a fresh minute, whether the last one was right or wrong. */
+function resetChainClock() {
+  CHDEADLINE = Date.now() + CHN.TURN_SECONDS * 1000;
+}
+
+/**
+ * One interval drives the countdown. It stops itself once the bar leaves the
+ * DOM, so navigating away needs no teardown anywhere else.
+ */
+function runChainClock() {
+  clearInterval(CHCLOCK);
+  const tick = () => {
+    const bar = document.getElementById('clockfill');
+    const num = document.getElementById('clocknum');
+    if (!bar || !num || !CH || CH.finished) { clearInterval(CHCLOCK); CHCLOCK = null; return; }
+    const left = Math.max(0, CHDEADLINE - Date.now());
+    const secs = Math.ceil(left / 1000);
+    num.textContent = secs;
+    bar.style.width = (left / (CHN.TURN_SECONDS * 1000) * 100) + '%';
+    bar.parentElement.classList.toggle('low', secs <= 10);
+    if (left <= 0) {
+      clearInterval(CHCLOCK); CHCLOCK = null;
+      CHN.timeout(CH);
+      resetChainClock();
+      playChain("Out of time", 'no');
+    }
+  };
+  tick();
+  CHCLOCK = setInterval(tick, 200);
+}
+
 function playChain(msg = null, tone = '') {
-  const g = CH, cur = g.current;
+  const g = CH;
+  const team = CHN.sideLabel(g.team);
+  const isCountry = g.team.kind === 'country';
+  const size = CHN.membersOf(VIEW, g.team).size;
   beginPaint('playChain');
   app.innerHTML = '';
   app.append(el(`<div>
-    <div class="bar"><button class="back" id="back">‹ Back</button>
+    <div class="bar"><button class="back" id="back">\u2039 Back</button>
       <span>${g.chain.filter(x => x.kind === 'player').length} in the chain</span></div>
 
     <div class="board">${g.players.map((p, i) => `
       <div class="seat ${i === g.turn && !g.finished ? 'active' : ''} ${p.out ? 'out' : ''}">
         <div class="nm">${esc(p.name)}</div>
         <div class="sc" style="font-size:15px">${p.out ? 'out'
-          : '●'.repeat(p.lives) + '○'.repeat(CHN.LIVES - p.lives)}</div></div>`).join('')}</div>
+          : '\u25cf'.repeat(p.lives) + '\u25cb'.repeat(CHN.LIVES - p.lives)}</div></div>`).join('')}</div>
 
     <div class="onthetable">
       <div class="lbl">On the table</div>
-      <div class="who">${esc(cur.name)}</div>
-      <div class="sub">${esc([cur.nationality, cur.position].filter(Boolean).join(' · '))}</div>
+      <div class="who">${esc(team)}</div>
+      <div class="sub">${isCountry ? 'Country' : 'Club'} \u00b7 ${size} players we know of</div>
     </div>
 
     ${g.finished ? `
@@ -460,18 +497,21 @@ function playChain(msg = null, tone = '') {
       <button class="btn" id="again">New chain</button>
       <button class="btn ghost" id="home2">Home</button>`
     : `
-      <div class="turnline"><b>${esc(g.players[g.turn].name)}</b> — name a club
-        ${esc(cur.name)} played for, and someone else from it</div>
-      <input id="clubin" placeholder="Club" autocomplete="off" autocorrect="off" spellcheck="false">
-      <div class="sugg" id="clubsug" hidden></div>
-      <input id="playin" placeholder="Another player from that club" style="margin-top:8px"
-        autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false">
+      <div class="clock"><div class="fill" id="clockfill"></div>
+        <span class="num" id="clocknum">${CHN.TURN_SECONDS}</span></div>
+      <div class="turnline"><b>${esc(g.players[g.turn].name)}</b> \u2014 name someone who played
+        for ${esc(team)}, and another team they played for</div>
+      <input id="playin" placeholder="Player who played for ${esc(team)}" autocomplete="off"
+        autocapitalize="words" autocorrect="off" spellcheck="false">
       <div class="sugg" id="playsug" hidden></div>
+      <input id="clubin" placeholder="A team they played for" style="margin-top:8px"
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <div class="sugg" id="clubsug" hidden></div>
       <button class="btn" id="submit">Link</button>
       ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}`}
 
-    <ul class="chainlist">${g.chain.slice().reverse().map(x => x.kind === 'club'
-      ? `<li class="cl">${esc(shortClub(x.name))}</li>`
+    <ul class="chainlist">${g.chain.slice().reverse().map(x => x.kind === 'team'
+      ? `<li class="cl">${esc(x.name)}</li>`
       : `<li class="pl">${esc(x.name)}${x.by ? `<span class="by">${esc(x.by)}</span>` : ''}</li>`).join('')}</ul>
   </div>`));
 
@@ -479,11 +519,11 @@ function playChain(msg = null, tone = '') {
   const ag = document.getElementById('again'); if (ag) ag.onclick = setupChain;
   const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
 
-  const ci = document.getElementById('clubin');
-  if (!ci) return;
   const pi = document.getElementById('playin');
+  if (!pi) { clearInterval(CHCLOCK); CHCLOCK = null; return; }
+  const ci = document.getElementById('clubin');
 
-  // Suggestions cover every club and every player, never only the valid ones -
+  // Suggestions cover every player and every team, never only the valid ones -
   // narrowing them would hand over both halves of the answer.
   const wire = (input, box, source) => {
     input.oninput = () => {
@@ -495,26 +535,28 @@ function playChain(msg = null, tone = '') {
         `<button class="sg" data-v="${esc(h)}"><span class="n">${esc(h)}</span></button>`).join('');
       box.querySelectorAll('.sg').forEach(b => b.onclick = () => {
         input.value = b.dataset.v; box.hidden = true; box.innerHTML = '';
-        (input === ci ? pi : input).focus();
+        (input === pi ? ci : input).focus();
       });
     };
   };
-  wire(ci, document.getElementById('clubsug'),
-    (t) => VCLUBS.keys.map(shortClub).filter(c => c.toLowerCase().includes(t)).sort((a, b) => a.length - b.length));
   wire(pi, document.getElementById('playsug'),
     (t) => suggest(VNAMES, t, 6).map(p => p.name));
+  wire(ci, document.getElementById('clubsug'),
+    (t) => VCLUBS.labels.filter(c => c.toLowerCase().includes(t)).sort((a, b) => a.length - b.length));
 
   const go = () => {
-    const c = ci.value.trim(), p = pi.value.trim();
-    if (!c || !p) return;
-    const r = CHN.submit(VIEW, VNAMES, VCLUBS, g, c, p);
-    const txt = CHN.explain(r, g.current);
+    const p = pi.value.trim(), c = ci.value.trim();
+    if (!p || !c) return;
+    const r = CHN.submit(VIEW, VNAMES, VCLUBS, g, p, c);
+    const txt = CHN.explain(r, team);
     CHN.apply(g, r);
+    resetChainClock();
     playChain(txt, r.status === 'ok' ? 'ok' : 'no');
   };
   document.getElementById('submit').onclick = go;
-  pi.onkeydown = (e) => { if (e.key === 'Enter') go(); };
-  ci.focus();
+  ci.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  pi.focus();
+  runChainClock();
 }
 
 /* ---------------- Played for Both ---------------- */

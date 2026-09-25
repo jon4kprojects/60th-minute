@@ -48,14 +48,20 @@ def year(x):
     y = int(m.group(1))
     return y if 1870 <= y <= 2030 else None
 
-SENIOR_SKIP = ("under-", "under ", "olympic", " b national", "amateur", "youth")
+SENIOR_SKIP = ("under-", "under ", "olympic", " b national", "amateur", "youth", "u-2", "u-1")
+
+# "Australia men's national SOCCER team" - matching only "football" dropped
+# Australia entirely, and Tim Cahill fell back to his two Samoa caps. Match the
+# shape of the name instead of a fixed list of suffixes.
+NAT_RE = re.compile(
+    r"^(.*?)\s+(?:men's|women's)?\s*national\s+(?:association\s+)?"
+    r"(?:football|soccer)?\s*team$", re.I)
+
 def nationality(team):
     t = team.lower()
-    if any(s in t for s in SENIOR_SKIP): return None
-    t = re.sub(r"\b(men's|women's)\s+", "", team)
-    for suf in (" national association football team", " national football team",
-                " national association football", " national team"):
-        if suf in t: return t.split(suf)[0].strip()
+    if any(sk in t for sk in SENIOR_SKIP): return None
+    m = NAT_RE.match(team.strip())
+    if m and m.group(1): return m.group(1).strip()
     return None
 
 # --- assemble -----------------------------------------------------------
@@ -173,11 +179,15 @@ for pid, p in players.items():
 
     b = bio.get(pid, {})
     natl = sorted(nat.get(pid, []), reverse=True)
+    countries = sorted({c for _, c in nat.get(pid, [])})
     out.append({
         "id": pid, "name": p["name"], "fame": p["fame"],
         "born": b.get("dob"), "died": b.get("dod"),
         "position": best_pos(b.get("pos", set())),
         "nationality": natl[0][1] if natl else None,
+        # every senior country represented - The Chain links through any of
+        # them, and a player can switch allegiance (Cahill: Samoa, Australia)
+        "countries": countries,
         "caps": natl[0][0] if natl and natl[0][0] else None,
         "noStats": no_stats,
         "careerApps": None if no_stats else career_apps,

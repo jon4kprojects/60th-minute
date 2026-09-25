@@ -1,10 +1,7 @@
 {
-  "version": "1.33.396287",
+  "version": "1.41.d99753",
   "built": "2026-09-25",
-  "sha256": "3962872b2723",
+  "sha256": "d99753ae7097",
   "players": 5690,
-  "bytes": 6739779,
-  "verifiedClubs": 19,
-  "playableClubs": 408,
-  "topFiveClubs": 950
+  "bytes": 6308688
 }
