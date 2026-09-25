@@ -5,7 +5,7 @@ import { buildNameIndex, suggest, lookup } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b39.833b8f0';
+const BUILD = 'b40.4dd1a5e';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -164,7 +164,7 @@ function home() {
     <div class="spacer"></div>
     <div class="badge ${offline ? 'on' : ''}"><i class="dot"></i>${offline ? 'Offline ready' : 'Caching…'}</div>
     ${installHint()}
-    ${store.best ? `<div class="tag" style="margin-top:10px">Best score ${store.best}</div>` : ''}
+    ${store.best ? `<div class="tag" style="margin-top:10px">Best round ${store.best} correct</div>` : ''}
   </div>`));
   app.querySelectorAll('#era .chip').forEach(c => c.onclick = () => {
     store.era = +c.dataset.y; refreshView(); home();
@@ -658,7 +658,7 @@ function render() {
       <button class="back" id="back">‹ Back</button>
       <div class="prog"><i style="width:${(S.i / S.qs.length) * 100}%"></i></div>
       ${S.streak > 1 ? `<span class="streak">🔥${S.streak}</span>` : ''}
-      <span class="score">${S.score}</span></div>`;
+      <span class="score">${S.score}/${S.qs.length}</span></div>`;
   let body = `<div class="q">${esc(q.prompt)}</div>`;
   if (q.scope) body += `<div class="scope">${esc(q.scope)}</div>`;
   if (q.mode === 'career-path') {
@@ -669,7 +669,7 @@ function render() {
   if (q.mode === 'who-am-i') {
     body += `<ul class="clues">${q.clues.slice(0, S.revealed).map(c => `<li>${esc(c)}</li>`).join('')}</ul>`;
     if (!S.answered && S.revealed < q.clues.length)
-      body += `<button class="btn ghost" id="clue">Another clue (−1 point)</button>`;
+      body += `<button class="btn ghost" id="clue">Another clue</button>`;
   }
   // Career Path and Who Am I? always ask you to name the player. The four
   // options are one tap away on the question itself, which is where you know
@@ -686,7 +686,7 @@ function render() {
       body += `<div class="opts">${q.options.map(o =>
         `<button class="opt" data-id="${o.id}">${esc(o.label)}</button>`).join('')}</div>`;
     } else {
-      body += `<button class="btn ghost" id="shownames">Show multiple choice (\u22122 points)</button>`;
+      body += `<button class="btn ghost" id="shownames">Show multiple choice</button>`;
     }
     body += `<button class="btn ghost" id="giveup">Give up</button>`;
   } else if (q.mode === 'higher-lower') {
@@ -762,14 +762,9 @@ function answer(id, typedName) {
   const q = S.qs[S.i];
   const ok = id === q.answerId;
   const wasTyped = typedName !== undefined;
-  // Naming a player unaided is harder than picking one of four, so it pays
-  // more - unless the four names were taken, in which case it pays the same.
-  const unaided = !S.showedNames;
-  const base = unaided ? 5 : 3;
-  const pts = q.mode === 'who-am-i'
-    ? (ok ? Math.max(1, q.clues.length - S.revealed + 1) + (unaided ? 2 : 0) : 0)
-    : ok ? base : 0;
-  if (ok) { S.score += pts; S.streak++; S.best = Math.max(S.best, S.streak); } else S.streak = 0;
+  // No points. Right or wrong, and how many in a row - clues and the four
+  // names are there to be used, not priced.
+  if (ok) { S.score++; S.streak++; S.best = Math.max(S.best, S.streak); } else S.streak = 0;
   app.querySelectorAll('.opt').forEach(b => {
     const isAns = b.dataset.id === q.answerId;
     b.classList.add(isAns ? 'right' : b.dataset.id === id ? 'wrong' : 'dim');
@@ -785,7 +780,7 @@ function answer(id, typedName) {
         : `You said ${typedName}. `)
     : '';
   app.append(el(`<div>
-    <div class="fb"><div class="h ${ok ? 'ok' : 'no'}">${ok ? `Correct  +${pts}` : 'Not quite'}</div>
+    <div class="fb"><div class="h ${ok ? 'ok' : 'no'}">${ok ? 'Correct' : 'Not quite'}</div>
     <div class="d">${esc(missNote)}${esc(q.fact)}</div></div>
     <button class="btn" id="next">${S.i + 1 >= S.qs.length ? 'See result' : 'Next'}</button></div>`));
   document.getElementById('next').onclick = () => {
@@ -802,11 +797,11 @@ function results() {
   beginPaint('results');
   app.innerHTML = '';
   app.append(el(`<div>
-    <div class="big">${S.score}</div><div class="big-sub">out of ${max}</div>
+    <div class="big">${S.score}/${S.qs.length}</div><div class="big-sub">correct</div>
     <div class="rows">
       <div class="row"><span class="k">Best streak</span><span>${S.best}</span></div>
       <div class="row"><span class="k">Questions</span><span>${S.qs.length}</span></div>
-      <div class="row"><span class="k">Personal best</span><span>${store.best}</span></div>
+      <div class="row"><span class="k">Best round</span><span>${store.best}/${S.qs.length}</span></div>
     </div>
     <button class="btn" id="again">Play again</button>
     <button class="btn ghost" id="home">Home</button></div>`));
