@@ -1,11 +1,11 @@
-import { loadData, checkForUpdate } from './data.js';
+import { loadData, checkForUpdate, filterDB } from './data.js';
 import { MODES, buildRound } from './engine/index.js';
 import { mulberry32, seedFrom } from './rng.js';
 import { buildNameIndex, suggest } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 
-const BUILD = 'b33.256135d';
+const BUILD = 'b34.c08ab11';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -103,11 +103,24 @@ const store = {
   set best(v) { try { localStorage.setItem('best', v); } catch {} },
   doneToday() { try { return localStorage.getItem('daily') === today(); } catch { return false; } },
   markToday() { try { localStorage.setItem('daily', today()); } catch {} },
+  get era() { try { return +localStorage.getItem('era') || 0; } catch { return 0; } },
+  set era(v) { try { localStorage.setItem('era', v || 0); } catch {} },
+  get topFive() { try { return localStorage.getItem('t5') === '1'; } catch { return false; } },
+  set topFive(v) { try { localStorage.setItem('t5', v ? '1' : ''); } catch {} },
   get hideInstall() { try { return localStorage.getItem('noinstall') === '1'; } catch { return false; } },
   set hideInstall(v) { try { localStorage.setItem('noinstall', v ? '1' : ''); } catch {} },
 };
 
 let DB = null, NAMES = null, S = null, G = null;
+let VIEW = null, VNAMES = null;
+
+// Filters are applied to the data BEFORE a round starts, not inside each
+// generator: a generator that forgot one would quietly serve players the
+// filter was meant to exclude.
+function refreshView() {
+  VIEW = filterDB(DB, { since: store.era || null, topFive: store.topFive });
+  VNAMES = buildNameIndex(VIEW.players);
+}
 
 // Installed to a home screen there is no browser back button, and on Android
 // the hardware one would otherwise quit the app from the first screen you open.
@@ -129,6 +142,14 @@ function home() {
     <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
     <div class="tag">${DB.players.length.toLocaleString()} players · 1940s to today</div>
     <div class="dataver">Build ${esc(BUILD)} · data ${esc(DB.version)}</div>
+    <label style="margin-top:2px">Who's in</label>
+    <div class="chips" id="era">
+      ${[[0,'Everyone'],[1990,'From 1990'],[2000,'From 2000'],[2010,'From 2010']].map(([y,l]) =>
+        `<button class="chip ${store.era === y ? 'on' : ''}" data-y="${y}">${l}</button>`).join('')}
+    </div>
+    <div class="tag" style="margin:8px 2px 18px">${store.era
+      ? `${VIEW.players.length.toLocaleString()} players who started out in ${store.era} or later.`
+      : 'Every player we hold, back to the 1940s.'}</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="pfb">
@@ -143,6 +164,9 @@ function home() {
     ${installHint()}
     ${store.best ? `<div class="tag" style="margin-top:10px">Best score ${store.best}</div>` : ''}
   </div>`));
+  app.querySelectorAll('#era .chip').forEach(c => c.onclick = () => {
+    store.era = +c.dataset.y; refreshView(); home();
+  });
   const hide = document.getElementById('hideinstall');
   if (hide) hide.onclick = () => { store.hideInstall = true; home(); };
   const doInstall = document.getElementById('doinstall');
@@ -179,7 +203,7 @@ function installHint() {
 /* ---------------- Football 501 ---------------- */
 function setup501() {
   enterScreen();
-  const clubs = F501.clubsWithDepth(DB, 15).slice()
+  const clubs = F501.clubsWithDepth(VIEW, 15).slice()
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
 
@@ -192,8 +216,8 @@ function setup501() {
   };
 
   const draw = () => {
-    const hasLg  = club ? F501.hasLeagueSplit(DB, club) : false;
-    const hasAll = club ? F501.hasAllComps(DB, club) : true;
+    const hasLg  = club ? F501.hasLeagueSplit(VIEW, club) : false;
+    const hasAll = club ? F501.hasAllComps(VIEW, club) : true;
     // A club without cross-checked all-competition figures plays on league
     // figures; one without league figures plays on all-competitions.
     if (!hasLg) scope = 'all';
@@ -337,7 +361,7 @@ function play501(msg = null, tone = '') {
     };
 
     inp.oninput = () => {
-      list = suggest(NAMES, inp.value, 6); hi = -1; paint();
+      list = suggest(VNAMES, inp.value, 6); hi = -1; paint();
     };
     inp.onkeydown = (e) => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -355,7 +379,7 @@ function play501(msg = null, tone = '') {
 
     const go = () => {
       const v = inp.value.trim(); if (!v) return;
-      const r = F501.scoreEntry(DB, NAMES, G, v);
+      const r = F501.scoreEntry(VIEW, VNAMES, G, v);
       const tone = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
       F501.applyTurn(G, r);
       play501(F501.explain(r, F501.METRICS[G.metric].inline), tone);
@@ -375,9 +399,9 @@ function setupPFB() {
 
   const draw = () => {
     const picked = chosen.filter(Boolean);
-    const more = PFB.compatibleClubs(DB, picked, clubs);
+    const more = PFB.compatibleClubs(VIEW, picked, clubs);
     const boardSize = picked.length >= 2
-      ? PFB.build(DB, picked.map(k => clubs.find(c => c.key === k))).count : 0;
+      ? PFB.build(VIEW, picked.map(k => clubs.find(c => c.key === k))).count : 0;
 
     beginPaint('setupPFB');
     app.innerHTML = '';
@@ -387,6 +411,15 @@ function setupPFB() {
       <h1 style="font-size:30px">Clear the <em>board</em></h1>
       <div class="tag">Name every player who turned out for <b>all</b> of the
         chosen clubs. Three lives.</div>
+
+      <label>Leagues</label>
+      <div class="chips" id="t5">
+        <button class="chip ${store.topFive ? '' : 'on'}" data-t="0">All clubs</button>
+        <button class="chip ${store.topFive ? 'on' : ''}" data-t="1">Top 5 only</button>
+      </div>
+      <div class="tag" style="margin:8px 2px 14px">${store.topFive
+        ? 'England, Spain, Italy, Germany and France.'
+        : 'Every club we hold, worldwide.'}</div>
 
       <label>Clubs</label>
       <div class="chips" id="mode">
@@ -431,6 +464,9 @@ function setupPFB() {
     </div>`));
 
     document.getElementById('back').onclick = home;
+    app.querySelectorAll('#t5 .chip').forEach(c => c.onclick = () => {
+      store.topFive = c.dataset.t === '1'; refreshView(); chosen = []; setupPFB();
+    });
     app.querySelectorAll('#mode .chip').forEach(c => c.onclick = () => { mode = c.dataset.m; draw(); });
     app.querySelectorAll('#n .chip').forEach(c => c.onclick = () => {
       n = c.dataset.n === 'any' ? 'any' : +c.dataset.n; draw();
@@ -472,11 +508,11 @@ function setupPFB() {
     document.getElementById('go').onclick = () => {
       let board;
       if (mode === 'random') {
-        board = PFB.generate(DB, mulberry32((Math.random() * 2 ** 32) >>> 0), n);
+        board = PFB.generate(VIEW, mulberry32((Math.random() * 2 ** 32) >>> 0), n);
         if (!board) return alert('No playable board for that many clubs — try again.');
       } else {
         const sides = picked.map(k => clubs.find(c => c.key === k));
-        board = PFB.build(DB, sides);
+        board = PFB.build(VIEW, sides);
         if (board.count < 1) return playPFBEmpty(sides);
       }
       PB = PFB.createGame(board);
@@ -502,7 +538,7 @@ function playPFBEmpty(sides) {
 // Appearances for each side, so the reveal actually teaches you something
 // rather than just listing names you did not get.
 function slotRow(id, cls) {
-  const p = DB.byId.get(id), b = PB.board;
+  const p = VIEW.byId.get(id), b = PB.board;
   // On a two-club board the heading already names the sides in order, so bare
   // numbers read fine and keep the player's name on one line. With three or
   // more, label them - the order is no longer obvious at a glance.
@@ -605,7 +641,7 @@ function start(mode) {
   const daily = mode === 'daily';
   const rnd = mulberry32(daily ? seedFrom('daily-' + today()) : (Math.random() * 2 ** 32) >>> 0);
   const keys = daily ? Object.keys(MODES) : [mode];
-  const qs = buildRound(DB, rnd, keys, 10);
+  const qs = buildRound(VIEW, rnd, keys, 10);
   if (!qs.length) { app.innerHTML = '<div class="loading">Could not build a round.</div>'; return; }
   S = { qs, i: 0, score: 0, streak: 0, best: 0, daily, revealed: 1, answered: false };
   render();
@@ -714,6 +750,7 @@ const dropSplash = async () => {
   try {
     DB = await loadData();
     NAMES = buildNameIndex(DB.players);
+    refreshView();
     home();
     await dropSplash();
   } catch (e) {

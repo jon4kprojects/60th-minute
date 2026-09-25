@@ -77,6 +77,22 @@ league_ok = sorted(c for c in alltot
                    if alltot[c] >= 12 and allcov[c] / alltot[c] >= 0.5)
 data["leagueScopeClubs"] = league_ok
 data["playableClubs"] = sorted(set(league_ok) | ver)
+
+# Clubs in the five big leagues, for the Played for Both filter. P17 alone
+# cannot do this - it says United Kingdom for Arsenal and Celtic alike - so the
+# mapping comes from the club's league as well as its country.
+try:
+    cc = json.load(open(os.path.join(OUT, "club_country.json")))
+except Exception:
+    cc = {}
+held = {club for p in data["players"] for club in (p.get("allClubs") or [])}
+data["topFiveClubs"] = sorted(c for c in held if cc.get(c))
+data["clubCountry"] = {c: cc[c] for c in data["topFiveClubs"]}
+
+# Career start year, so an era filter does not have to recompute it per round.
+for p in data["players"]:
+    ys = [c["from"] for c in p["clubs"] if c.get("from")]
+    p["debut"] = min(ys) if ys else None
 open(os.path.join(OUT, "dataset.json"), "w").write(json.dumps(data, separators=(",", ":")))
 
 print(f"players given league figures: {players_hit:,}")

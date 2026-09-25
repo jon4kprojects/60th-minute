@@ -84,7 +84,15 @@ export async function loadData() {
       return y.length ? Math.floor(Math.min(...y) / 10) * 10 : null;
     },
   };
-  // indexes for Played for Both
+  buildIndexes(DB);
+  DB.topFiveClubs = new Set(raw.topFiveClubs || []);
+  DB.clubCountry = raw.clubCountry || {};
+  return DB;
+}
+
+function buildIndexes(DB) {
+  const players = DB.players;
+  DB.byId = new Map(players.map(p => [p.id, p]));
   DB.byClub = new Map();
   DB.byNation = new Map();
   for (const p of players) {
@@ -104,6 +112,44 @@ export async function loadData() {
   DB.clubProm = new Map([...DB.byClub].map(([c, s]) => [c, known(s)]));
   DB.natProm = new Map([...DB.byNation].map(([c, s]) => [c, known(s)]));
   return DB;
+}
+
+/**
+ * A filtered view of the dataset, used before a round starts.
+ *
+ * Returns a real db-shaped object with its own indexes rather than passing
+ * filters down into every generator - a generator that forgot to apply one
+ * would quietly serve players the filter was meant to exclude.
+ */
+export function filterDB(db, { since = null, topFive = false } = {}) {
+  if (!since && !topFive) return db;
+  let players = db.players;
+  if (since) {
+    // A dataset without debut years would otherwise filter down to nobody and
+    // leave every game unplayable. Fail open, not silently empty.
+    const withDebut = players.filter(p => p.debut);
+    if (withDebut.length < players.length * 0.5) return db;
+    players = withDebut.filter(p => p.debut >= since);
+  }
+  if (topFive) {
+    const t5 = db.topFiveClubs;
+    players = players.filter(p => (p.allClubs || []).some(c => t5.has(c)));
+  }
+  const view = Object.assign(Object.create(Object.getPrototypeOf(db)), db, { players });
+  // a top-five round should not offer clubs outside it either
+  if (topFive) {
+    view.players = players.map(p => ({
+      ...p,
+      allClubs: (p.allClubs || []).filter(c => db.topFiveClubs.has(c)),
+      clubs: p.clubs.filter(c => db.topFiveClubs.has(c.club)),
+    })).filter(p => p.allClubs.length);
+  }
+  if (!view.players.length) return db;      // never hand back an empty game
+  buildIndexes(view);
+  view.playableClubs = new Set([...db.playableClubs].filter(c => !topFive || db.topFiveClubs.has(c)));
+  view.verifiedClubs = new Set([...db.verifiedClubs].filter(c => !topFive || db.topFiveClubs.has(c)));
+  view.leagueScopeClubs = new Set([...db.leagueScopeClubs].filter(c => !topFive || db.topFiveClubs.has(c)));
+  return view;
 }
 
 export const shortClub = (name) => name
