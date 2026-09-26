@@ -8,10 +8,18 @@ export function eligible(db) {
   return db.players.filter(p => p.fame >= 55 && p.clubs.length >= 2 && p.nationality);
 }
 
+// A spell with a start and no end is a player who has not left that club yet,
+// which is not the same as a career that stopped in the year he joined. Read
+// naively it retired Mbappe in 2024, the season he signed for Real Madrid.
+// When the last spell is still open we give the debut year and claim nothing
+// about an ending - true whether he is still playing or the data is simply
+// missing his final year.
 const era = (p) => {
   const y = p.clubs.map(c => c.from).filter(Boolean);
   if (!y.length) return null;
-  const a = Math.min(...y), b = Math.max(...p.clubs.map(c => c.to || c.from).filter(Boolean), a);
+  const a = Math.min(...y), last = Math.max(...y);
+  if (p.clubs.some(c => c.from === last && !c.to)) return `Started out in ${a}`;
+  const b = Math.max(...p.clubs.map(c => c.to || c.from).filter(Boolean), a);
   return `Played between ${a} and ${b}`;
 };
 

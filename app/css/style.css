@@ -309,3 +309,27 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .clock.low .num{color:var(--hot)}
 @keyframes clockpulse{50%{opacity:.2}}
 @media (prefers-reduced-motion:reduce){.clock.low .fill{animation:none}}
+
+/* Wrong guesses in Who Am I? and Career Path. The question stays open, so this
+   has to read as a nudge rather than as the verdict a .fb block normally is. */
+.fb.try{background:transparent;border:1px solid var(--line);padding:11px 13px}
+.fb.try .h{font-size:13px}
+.fb.try .d{font-size:13px;margin-top:2px}
+.tried{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 2px}
+.tried .lbl{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);font-weight:750}
+.tried .t{font-size:12.5px;padding:4px 9px;border-radius:999px;color:var(--muted);
+  background:var(--card);border:1px solid var(--line);text-decoration:line-through}
+
+/* Numbered install steps. Read once, on a phone, while following along - so
+   the number stays out of the way and the step text gets the room. */
+.steps{list-style:none;counter-reset:s;padding:0;margin:4px 0 16px}
+.steps li{counter-increment:s;position:relative;padding:12px 14px 12px 44px;margin-bottom:7px;
+  border-radius:12px;background:var(--card);border:1px solid var(--line);
+  font-size:14.5px;line-height:1.45}
+.steps li::before{content:counter(s);position:absolute;left:13px;top:11px;
+  width:21px;height:21px;border-radius:50%;display:grid;place-items:center;
+  font-size:11.5px;font-weight:800;color:#000;background:var(--hot)}
+.steps li b{color:var(--text);font-weight:750}
+/* The same stamp below the buttons instead of tucked under a heading. */
+.dataver.foot{margin:20px 0 0;text-align:center}

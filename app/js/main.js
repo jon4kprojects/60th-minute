@@ -6,7 +6,7 @@ import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 
-const BUILD = 'b42.40ab97b';
+const BUILD = 'b44.7d0ade0';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -108,8 +108,6 @@ const store = {
   set era(v) { try { localStorage.setItem('era', v || 0); } catch {} },
   get topFive() { try { return localStorage.getItem('t5') === '1'; } catch { return false; } },
   set topFive(v) { try { localStorage.setItem('t5', v ? '1' : ''); } catch {} },
-  get hideInstall() { try { return localStorage.getItem('noinstall') === '1'; } catch { return false; } },
-  set hideInstall(v) { try { localStorage.setItem('noinstall', v ? '1' : ''); } catch {} },
 };
 
 let DB = null, NAMES = null, S = null, G = null;
@@ -167,21 +165,11 @@ function home() {
       <div class="b">10 questions · same for everyone today</div></button>
     <div class="spacer"></div>
     <div class="badge ${offline ? 'on' : ''}"><i class="dot"></i>${offline ? 'Offline ready' : 'Caching…'}</div>
-    ${installHint()}
     ${store.best ? `<div class="tag" style="margin-top:10px">Best round ${store.best} correct</div>` : ''}
   </div>`));
   app.querySelectorAll('#era .chip').forEach(c => c.onclick = () => {
     store.era = +c.dataset.y; refreshView(); home();
   });
-  const hide = document.getElementById('hideinstall');
-  if (hide) hide.onclick = () => { store.hideInstall = true; home(); };
-  const doInstall = document.getElementById('doinstall');
-  if (doInstall) doInstall.onclick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null; home();
-  };
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const g = b.dataset.go;
     if (g === 'f501') return setup501();
@@ -191,20 +179,66 @@ function home() {
   });
 }
 
-function installHint() {
-  if (installed() || store.hideInstall) return '';
-  const p = platform();
-  const how = p === 'ios-safari'
-    ? 'Tap <b>Share</b>, then <b>Add to Home Screen</b>.'
-    : p === 'ios-other'
-      ? 'Open this page in <b>Safari</b>, then Share \u2192 <b>Add to Home Screen</b>. Only Safari can install it on iPhone.'
-      : 'Tap the menu, then <b>Install app</b> \u2014 or use the button below.';
-  return `<div class="install">
-    <div class="t">Put it on your home screen</div>
-    <div class="d">${how} It then works with no signal at all.</div>
-    ${p === 'other' && deferredPrompt ? '<button class="btn" id="doinstall">Install</button>' : ''}
-    <button class="x" id="hideinstall">Not now</button>
-  </div>`;
+/* ---------------- Landing ---------------- */
+
+// Installing is the whole point of this app - in the desert a browser tab is
+// useless. So the door into the app is also where we ask, once, before anyone
+// has started playing. Already installed, and this screen never appears.
+function landing() {
+  atHome = true;
+  beginPaint('landing');
+  app.innerHTML = '';
+  app.append(el(`<div>
+    <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
+    <div class="tag">${DB.players.length.toLocaleString()} players \u00b7 1940s to today.
+      Put it on your home screen and it works with no signal at all.</div>
+    <button class="btn" id="enter">Enter</button>
+    <button class="btn ghost" data-how="ios">Add to iPhone as an app</button>
+    <button class="btn ghost" data-how="android">Add to Android as an app</button>
+    <div class="dataver foot">Build ${esc(BUILD)} \u00b7 data ${esc(DB.version)}</div>
+  </div>`));
+  document.getElementById('enter').onclick = home;
+  app.querySelectorAll('[data-how]').forEach(b => b.onclick = () => installGuide(b.dataset.how));
+}
+
+function installGuide(p) {
+  const ios = p === 'ios';
+  const steps = ios ? [
+    'Open this page in <b>Safari</b>. Only Safari can install it on iPhone.',
+    'Tap the <b>Share</b> button \u2014 the square with an arrow out of the top.',
+    'Scroll down and tap <b>Add to Home Screen</b>.',
+    'Choose <b>Open as Web App</b> if that option appears.',
+    'Tap <b>Add</b>.',
+  ] : [
+    'Open this page in <b>Chrome</b>.',
+    'Tap the <b>\u22ee</b> three dots, top right.',
+    'Tap <b>Add to Home screen</b>, or <b>Install app</b>.',
+    'If prompted, choose <b>Install</b>.',
+    'It appears on your home screen or in the app drawer.',
+  ];
+  enterScreen();
+  beginPaint('installGuide');
+  app.innerHTML = '';
+  app.append(el(`<div>
+    <div class="bar"><button class="back" id="back">\u2039 Back</button></div>
+    <div class="kicker">${ios ? 'iPhone' : 'Android'}</div>
+    <h1 style="font-size:30px">Add it as an <em>app</em></h1>
+    <ol class="steps">${steps.map(t => `<li>${t}</li>`).join('')}</ol>
+    <div class="tag">It then sits on your home screen with its own icon and no
+      address bar, and every game works with no signal at all.</div>
+    ${!ios && deferredPrompt ? '<button class="btn" id="doinstall">Install now</button>' : ''}
+    <button class="btn ghost" id="enter">Skip, just play</button>
+  </div>`));
+  document.getElementById('back').onclick = landing;
+  document.getElementById('enter').onclick = home;
+  const di = document.getElementById('doinstall');
+  if (di) di.onclick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    home();
+  };
 }
 
 /* ---------------- Football 501 ---------------- */
@@ -816,7 +850,7 @@ function start(mode) {
   // With no names on screen a single clue is unusable, so hard mode starts
   // three rungs up the ladder.
   S = { qs, i: 0, score: 0, streak: 0, best: 0, daily,
-        revealed: 3, answered: false, showedNames: false };
+        revealed: 3, answered: false, showedNames: false, misses: [], note: null };
   render();
 }
 
@@ -844,6 +878,13 @@ function render() {
   // whether you need them - a setting chosen beforehand cannot know that.
   const typed = (q.mode === 'career-path' || q.mode === 'who-am-i') && !S.answered;
   if (typed) {
+    // A wrong name is a wrong guess, not the end of the question. Showing what
+    // has already been tried is what makes a second guess worth having - without
+    // it you lose track and retype the same name.
+    if (S.note) body += `<div class="fb try"><div class="h no">Not quite</div>
+      <div class="d">${esc(S.note)}</div></div>`;
+    if (S.misses.length) body += `<div class="tried"><span class="lbl">Tried</span>${
+      S.misses.map(m => `<span class="t">${esc(m)}</span>`).join('')}</div>`;
     body += `<div class="entry"><input id="guess" placeholder="Name the player" autocomplete="off"
       autocapitalize="words" autocorrect="off" spellcheck="false"
       ><button class="btn" id="submit">Answer</button></div>
@@ -903,8 +944,15 @@ function render() {
       // mismatched onto whoever happened to be the closest remaining name.
       const full = lookup(NAMES, v);
       const filteredOut = full && (!p || p.id !== full.id) && !VIEW.byId.has(full.id);
-      answer(p && !filteredOut ? p.id : '__none__',
-             filteredOut ? { name: full.name, excluded: true } : (p ? p.name : v));
+      if (p && !filteredOut && p.id === q.answerId) return answer(p.id, p.name);
+      // Wrong, so say why and leave the question standing. Only Give up reveals
+      // the answer - guessing badly should cost you nothing but the clue you
+      // would have saved.
+      if (filteredOut) S.note = `${full.name} is not in this round \u2014 your filters rule him out.`;
+      else if (!p) S.note = `No player found called "${v}".`;
+      else { S.note = `You said ${p.name}.`; if (!S.misses.includes(p.name)) S.misses.push(p.name); }
+      gi.value = '';
+      render();
     };
     gi.oninput = () => { list = suggest(VNAMES, gi.value, 6); hi = -1; paint(); };
     gi.onkeydown = (e) => {
@@ -933,6 +981,8 @@ function answer(id, typedName) {
   // No points. Right or wrong, and how many in a row - clues and the four
   // names are there to be used, not priced.
   if (ok) { S.score++; S.streak++; S.best = Math.max(S.best, S.streak); } else S.streak = 0;
+  for (const sel of ['.entry', '.sugg', '.fb.try', '.tried', '#shownames', '#giveup', '#clue'])
+    app.querySelectorAll(sel).forEach(n => n.remove());
   app.querySelectorAll('.opt').forEach(b => {
     const isAns = b.dataset.id === q.answerId;
     b.classList.add(isAns ? 'right' : b.dataset.id === id ? 'wrong' : 'dim');
@@ -942,10 +992,10 @@ function answer(id, typedName) {
     }
     b.onclick = null;
   });
-  const missNote = !ok && wasTyped && typedName
-    ? (typedName.excluded
-        ? `${typedName.name} is not in this round \u2014 your filters rule him out. `
-        : `You said ${typedName}. `)
+  // Reaching here typed means the guess was right; a wrong one never resolves
+  // the question. What is worth saying is how many attempts it took.
+  const missNote = ok && wasTyped && S.misses.length
+    ? `After ${S.misses.length} wrong ${S.misses.length === 1 ? 'guess' : 'guesses'}. `
     : '';
   app.append(el(`<div>
     <div class="fb"><div class="h ${ok ? 'ok' : 'no'}">${ok ? 'Correct' : 'Not quite'}</div>
@@ -953,7 +1003,8 @@ function answer(id, typedName) {
     <button class="btn" id="next">${S.i + 1 >= S.qs.length ? 'See result' : 'Next'}</button></div>`));
   document.getElementById('next').onclick = () => {
     if (S.i + 1 >= S.qs.length) return results();
-    S.i++; S.revealed = 3; S.answered = false; S.showedNames = false; render();
+    S.i++; S.revealed = 3; S.answered = false; S.showedNames = false;
+    S.misses = []; S.note = null; render();
   };
   window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 }
@@ -996,7 +1047,7 @@ const dropSplash = async () => {
     DB = await loadData();
     NAMES = buildNameIndex(DB.players);
     refreshView();
-    home();
+    installed() ? home() : landing();
     await dropSplash();
   } catch (e) {
     dropSplash();

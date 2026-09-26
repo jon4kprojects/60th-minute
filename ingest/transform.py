@@ -108,14 +108,50 @@ for b in load("spells"):
         "apps": _a, "goals": num(V(b, "goals"))})
 
 # --- filter + shape -----------------------------------------------------
-POS_ORDER = ["goalkeeper", "defender", "centre-back", "full-back", "midfielder",
-             "defensive midfielder", "attacking midfielder", "winger", "forward",
-             "centre-forward", "striker"]
+# Most specific and most advanced first. Wikidata routinely records both a
+# broad position and a precise one, and the broad one is the less useful clue:
+# picking defensively made Messi a Midfielder and Bobby Moore a Defender rather
+# than a Centre-Back. Reading the other way gives the label a fan would use.
+POS_ORDER = ["striker", "centre-forward", "forward", "winger", "attacking midfielder",
+             "defensive midfielder", "midfielder", "full-back", "centre-back",
+             "defender", "goalkeeper"]
+
+# Wikidata's item for a wide midfielder is labelled "wing half", a term nobody
+# has used since the 1950s, and editors have hung it on Bale, Figo and Giggs.
+# Shown to a room of purists it reads as a mistake, which it is. The article
+# behind that item redirects to Midfielder, so that is what we call it - the
+# broader term Wikipedia itself says it belongs to, not a guess of our own.
+#
+# These only apply when nothing else does. Ronaldo is recorded as both a forward
+# and a "wing half"; translating that second claim and letting it compete turned
+# him into a midfielder.
+POS_ALIAS = {
+    "wing half": "midfielder",
+    "wide midfielder": "midfielder",
+    "left midfielder": "midfielder",
+    "right midfielder": "midfielder",
+    "left back": "full-back",
+    "right back": "full-back",
+    "wing-back": "full-back",
+    "attacker": "forward",
+    "second striker": "forward",
+}
+
+# Claims from the wrong sport entirely. A handful of players carry them, and a
+# position clue reading "Linebacker" would be the last thing anyone trusted.
+POS_DROP = {"coach", "linebacker", "defensive tackle", "stage race",
+            "breakaway specialist", "point guard", "pitcher", "goaltender"}
+
+
 def best_pos(s):
+    s = {c.lower() for c in s if c.lower() not in POS_DROP}
     for p in POS_ORDER:
-        for c in s:
-            if c.lower() == p: return c.title()
+        if p in s: return p.title()
+    s = {POS_ALIAS.get(c, c) for c in s}
+    for p in POS_ORDER:
+        if p in s: return p.title()
     return sorted(s)[0].title() if s else None
+
 
 out, rejected = [], collections.Counter()
 for pid, p in players.items():

@@ -38,6 +38,11 @@ def git_sha():
 def main():
     db = json.load(open(SRC))
     players = db["players"]
+    # transform.py stamps a version before the merge steps have run, so its
+    # number describes a dataset that no longer exists by the time we ship. The
+    # version has to be computed here, from the finished file, and written into
+    # both places that carry it - they disagreed otherwise, and the app shows
+    # one while the updater compares the other.
     digest = sha_of(SRC)[:12]
 
     old = {}
@@ -51,11 +56,14 @@ def main():
         n = int(m.group(1)) + 1
     build = f"b{n}.{git_sha()}"
 
-    shutil.copyfile(SRC, DST)
+    version = f"1.{n}.{digest[:6]}"
+    db["version"] = version
+    with open(DST, "w") as f:
+        json.dump(db, f, separators=(",", ":"))
     ver = {
-        "version": f"1.{n}.{digest[:6]}",
+        "version": version,
         "built": datetime.date.today().isoformat(),
-        "sha256": digest,
+        "sha256": sha_of(DST)[:12],
         "players": len(players),
         "bytes": os.path.getsize(DST),
         "verifiedClubs": old.get("verifiedClubs", 0),

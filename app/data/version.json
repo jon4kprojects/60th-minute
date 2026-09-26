@@ -1,9 +1,9 @@
 {
-  "version": "1.42.6ec2e2",
-  "built": "2026-09-25",
-  "sha256": "6ec2e294aa9a",
+  "version": "1.44.c82d0e",
+  "built": "2026-09-26",
+  "sha256": "0d6afd689399",
   "players": 5690,
-  "bytes": 6940256,
+  "bytes": 6940661,
   "verifiedClubs": 19,
   "playableClubs": 408,
   "topFiveClubs": 950
