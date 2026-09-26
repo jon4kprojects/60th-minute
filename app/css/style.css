@@ -333,3 +333,9 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .steps li b{color:var(--text);font-weight:750}
 /* The same stamp below the buttons instead of tucked under a heading. */
 .dataver.foot{margin:20px 0 0;text-align:center}
+
+/* A quiet way back to the install instructions from inside the app. */
+.linkish{display:block;width:100%;margin:22px 0 4px;padding:10px;background:none;border:0;
+  color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer}
+.linkish:active{color:var(--hot)}

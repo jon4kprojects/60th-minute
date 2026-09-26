@@ -6,7 +6,7 @@ import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 
-const BUILD = 'b44.7d0ade0';
+const BUILD = 'b48.ff4c81c';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -166,10 +166,12 @@ function home() {
     <div class="spacer"></div>
     <div class="badge ${offline ? 'on' : ''}"><i class="dot"></i>${offline ? 'Offline ready' : 'Caching…'}</div>
     ${store.best ? `<div class="tag" style="margin-top:10px">Best round ${store.best} correct</div>` : ''}
+    <button class="linkish" id="getit">Get it on another phone</button>
   </div>`));
   app.querySelectorAll('#era .chip').forEach(c => c.onclick = () => {
     store.era = +c.dataset.y; refreshView(); home();
   });
+  document.getElementById('getit').onclick = () => { enterScreen(); landing(); };
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const g = b.dataset.go;
     if (g === 'f501') return setup501();
@@ -192,7 +194,7 @@ function landing() {
     <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
     <div class="tag">${DB.players.length.toLocaleString()} players \u00b7 1940s to today.
       Put it on your home screen and it works with no signal at all.</div>
-    <button class="btn" id="enter">Enter</button>
+    <button class="btn" id="enter">${installed() ? 'Back to the games' : 'Enter'}</button>
     <button class="btn ghost" data-how="ios">Add to iPhone as an app</button>
     <button class="btn ghost" data-how="android">Add to Android as an app</button>
     <div class="dataver foot">Build ${esc(BUILD)} \u00b7 data ${esc(DB.version)}</div>

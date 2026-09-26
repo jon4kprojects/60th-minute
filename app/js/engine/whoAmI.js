@@ -1,4 +1,4 @@
-// Who Am I?: reveal structured clues one at a time. Fewer clues = more points.
+// Who Am I?: reveal structured clues one at a time, as few as you dare.
 // Every clue is read from a field. Nothing is composed or inferred, so a clue
 // can never assert something the data does not actually say.
 import { pick, sample, shuffle, weightedPick, FAME_W } from '../rng.js';

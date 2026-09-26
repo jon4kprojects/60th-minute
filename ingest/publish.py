@@ -49,14 +49,18 @@ def main():
     if os.path.exists(VER):
         old = json.load(open(VER))
 
-    # the build counter only ever goes up, so a stamp is comparable across days
+    # the build counter only ever goes up, so a code stamp is comparable across
+    # days. It is deliberately not part of the data version.
     n = 1
     m = re.search(r"'b(\d+)\.", open(MAIN).read())
     if m:
         n = int(m.group(1)) + 1
     build = f"b{n}.{git_sha()}"
 
-    version = f"1.{n}.{digest[:6]}"
+    # Derived from the data alone, never from the build counter. Every phone
+    # re-downloads the whole 7MB when this string changes, so a code-only
+    # release must leave it exactly where it was.
+    version = f"1.{digest[:8]}"
     db["version"] = version
     with open(DST, "w") as f:
         json.dump(db, f, separators=(",", ":"))

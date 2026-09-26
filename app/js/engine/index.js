@@ -6,7 +6,7 @@ import * as whoAmI from './whoAmI.js';
 export const MODES = {
   'career-path':  { title: 'Career Path',     blurb: 'Name the player from his clubs', gen: careerPath },
   'higher-lower': { title: 'Higher or Lower', blurb: 'Pick the bigger number',         gen: higherLower },
-  'who-am-i':     { title: 'Who Am I?',       blurb: 'Fewer clues, more points',       gen: whoAmI },
+  'who-am-i':     { title: 'Who Am I?',       blurb: 'Name him from as few clues as you dare', gen: whoAmI },
 };
 
 export function buildRound(db, rnd, modeKeys, n = 10) {
