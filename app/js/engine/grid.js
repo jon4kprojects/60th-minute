@@ -23,34 +23,43 @@ const ok = (p) => !p.noStats && !p.statsSuspect;
  */
 export function categories(db) {
   const out = [];
-  // Each category carries the sentence it uses to turn someone away. "Does not
-  // fit that square" tells you nothing when the square has two halves and you
-  // got one of them right - Batistuta played for Fiorentina, and being told he
-  // failed says nothing about which half you misjudged.
-  const add = (kind, key, label, ids, fail, sort) => {
-    if (ids.size >= 12) out.push({ kind, key, label, ids, fail, sort: sort ?? 0 });
+  // Each category carries both sentences it needs: one for a player who
+  // satisfies it and one for a player who does not. A near miss is the most
+  // useful thing a square can say - "played for Ajax but has under 100 caps"
+  // tells you the guess was sound and why it failed, where "does not fit"
+  // leaves the next guess no better informed than the last.
+  const add = (kind, key, label, ids, pass, fail, sort) => {
+    if (ids.size >= 12) out.push({ kind, key, label, ids, pass, fail, sort: sort ?? 0 });
   };
 
   for (const [club, ids] of db.byClub) {
     const n = db.clubProm.get(club) || 0;
-    if (n >= 8) add('club', 'c:' + club, shortClub(club), ids, `never played for ${shortClub(club)}`, n);
+    if (n >= 8) add('club', 'c:' + club, shortClub(club), ids,
+                    `played for ${shortClub(club)}`, `never played for ${shortClub(club)}`, n);
   }
   for (const [nat, ids] of db.byNation) {
     const n = db.natProm.get(nat) || 0;
-    if (n >= 8) add('country', 'n:' + nat, nat, ids, `never played for ${nat}`, n);
+    if (n >= 8) add('country', 'n:' + nat, nat, ids,
+                    `played for ${nat}`, `never played for ${nat}`, n);
   }
 
   const by = (fn) => new Set(db.players.filter(fn).map(p => p.id));
   for (const pos of ['Goalkeeper', 'Defender', 'Centre-Back', 'Full-Back', 'Midfielder', 'Forward'])
-    add('trait', 'p:' + pos, pos, by(p => p.position === pos), `is not recorded as a ${pos.toLowerCase()}`);
+    add('trait', 'p:' + pos, pos, by(p => p.position === pos),
+        `is recorded as a ${pos.toLowerCase()}`, `is not recorded as a ${pos.toLowerCase()}`);
 
-  add('trait', 'caps50',  '50+ caps',  by(p => (p.caps || 0) >= 50),  'has under 50 caps');
-  add('trait', 'caps100', '100+ caps', by(p => (p.caps || 0) >= 100), 'has under 100 caps');
-  add('trait', 'g100', '100+ club goals', by(p => ok(p) && (p.careerGoals || 0) >= 100), 'has under 100 club goals');
-  add('trait', 'g200', '200+ club goals', by(p => ok(p) && (p.careerGoals || 0) >= 200), 'has under 200 club goals');
-  add('trait', 'a500', '500+ club games', by(p => ok(p) && (p.careerApps || 0) >= 500), 'has under 500 club games');
-  add('trait', 'pre90',  'Started before 1990',   by(p => p.debut && p.debut < 1990),  'did not start before 1990');
-  add('trait', 'post10', 'Started 2010 or later', by(p => p.debut && p.debut >= 2010), 'did not start in 2010 or later');
+  add('trait', 'caps50',  '50+ caps',  by(p => (p.caps || 0) >= 50),  'has 50+ caps',  'has under 50 caps');
+  add('trait', 'caps100', '100+ caps', by(p => (p.caps || 0) >= 100), 'has 100+ caps', 'has under 100 caps');
+  add('trait', 'g100', '100+ club goals', by(p => ok(p) && (p.careerGoals || 0) >= 100),
+      'has 100+ club goals', 'has under 100 club goals');
+  add('trait', 'g200', '200+ club goals', by(p => ok(p) && (p.careerGoals || 0) >= 200),
+      'has 200+ club goals', 'has under 200 club goals');
+  add('trait', 'a500', '500+ club games', by(p => ok(p) && (p.careerApps || 0) >= 500),
+      'has 500+ club games', 'has under 500 club games');
+  add('trait', 'pre90',  'Started before 1990',   by(p => p.debut && p.debut < 1990),
+      'started before 1990', 'did not start before 1990');
+  add('trait', 'post10', 'Started 2010 or later', by(p => p.debut && p.debut >= 2010),
+      'started in 2010 or later', 'did not start in 2010 or later');
   return out;
 }
 
@@ -85,8 +94,8 @@ export function generate(db, rnd, opts = {}) {
     const cells = rows.map(r => cols.map(c => inter(r.ids, c.ids)));
     if (cells.some(row => row.some(s => s.size < MIN_ANSWERS))) continue;
     return {
-      rows: rows.map(({ kind, key, label, fail }) => ({ kind, key, label, fail })),
-      cols: cols.map(({ kind, key, label, fail }) => ({ kind, key, label, fail })),
+      rows: rows.map(({ kind, key, label, pass, fail }) => ({ kind, key, label, pass, fail })),
+      cols: cols.map(({ kind, key, label, pass, fail }) => ({ kind, key, label, pass, fail })),
       // kept by reference so a rejected guess can say which half he failed
       rowIds: rows.map(r => r.ids),
       colIds: cols.map(c => c.ids),
@@ -127,9 +136,10 @@ export function submit(db, nameIdx, game, r, c, text, lookup) {
     const row = game.grid.rows[r], col = game.grid.cols[c];
     const missRow = !game.grid.rowIds[r].has(p.id);
     const missCol = !game.grid.colIds[c].has(p.id);
+    // Credit the half he got right before naming the one he did not.
     const why = missRow && missCol
       ? `fits neither ${row.label} nor ${col.label}`
-      : (missRow ? row.fail : col.fail);
+      : (missRow ? `${col.pass} but ${row.fail}` : `${row.pass} but ${col.fail}`);
     return { status: 'wrong', player: p, why };
   }
   return { status: 'ok', player: p };
