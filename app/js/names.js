@@ -48,7 +48,17 @@ const dist = (a, b) => {                       // bounded Levenshtein
 // who actually turned out for this club is the charitable reading.
 export function lookup(idx, query, prefer = null) {
   const q = norm(query);
-  if (q.length < 3) return null;
+  if (!q) return null;
+  // The three-character floor stops a stray "ro" picking somebody at random,
+  // but seven players - Jo, Rai, Edu, Gil, Ale - have names that short, and it
+  // made them unreachable in every mode that asks you to type a name. Below
+  // the floor an exact full name still counts, and nothing else does.
+  if (q.length < 3) {
+    const hits = idx.all.filter(({ n }) => n === q).map(({ p }) => p);
+    if (!hits.length) return null;
+    if (prefer) { const m = hits.filter(p => prefer.has(p.id)); if (m.length) return m[0]; }
+    return hits.sort((a, b) => b.fame - a.fame)[0];
+  }
 
   const scored = [];
   for (const { p, n } of idx.all) {

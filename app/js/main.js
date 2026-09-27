@@ -5,8 +5,9 @@ import { buildNameIndex, suggest, lookup } from './names.js';
 import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
+import * as GRID from './engine/grid.js';
 
-const BUILD = 'b48.ff4c81c';
+const BUILD = 'b51.0d9003f';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -156,6 +157,8 @@ function home() {
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="chain">
       <div class="t">The Chain</div><div class="b">Player, team, player, team · 2–4 players</div></button>
+    <button class="card hot" data-go="grid">
+      <div class="t">The Grid</div><div class="b">Nine squares \u00b7 one player who fits both</div></button>
     <button class="card hot" data-go="pfb">
       <div class="t">Played for Both</div><div class="b">Clear the board · name every shared player</div></button>
     ${Object.entries(MODES).map(([k, m]) => `
@@ -177,6 +180,7 @@ function home() {
     if (g === 'f501') return setup501();
     if (g === 'pfb') return setupPFB();
     if (g === 'chain') return setupChain();
+    if (g === 'grid') return setupGrid();
     start(g);
   });
 }
@@ -593,6 +597,111 @@ function playChain(msg = null, tone = '') {
   ci.onkeydown = (e) => { if (e.key === 'Enter') go(); };
   pi.focus();
   runChainClock();
+}
+
+/* ---------------- The Grid ---------------- */
+
+let GR = null;
+let GRSEL = null;      // the square being answered, or null
+
+function setupGrid() {
+  enterScreen();
+  const g = GRID.generate(VIEW, mulberry32((Math.random() * 2 ** 32) >>> 0));
+  if (!g) return alert('Could not build a grid with these filters. Try widening the era.');
+  GR = GRID.createGame(g);
+  GRSEL = null;
+  playGrid();
+}
+
+function gridCell(game, r, c, revealed) {
+  const f = game.filled[r][c];
+  if (f) return `<button class="gc done" disabled><span>${esc(f.name)}</span></button>`;
+  if (revealed) return `<button class="gc miss" disabled><span>${esc(revealed[r][c] || '\u2014')}</span></button>`;
+  const on = GRSEL && GRSEL.r === r && GRSEL.c === c;
+  return `<button class="gc ${on ? 'on' : ''}" data-r="${r}" data-c="${c}"></button>`;
+}
+
+function playGrid(msg = null, tone = '') {
+  const g = GR, grid = g.grid;
+  const revealed = g.finished && GRID.filledCount(g) < 9 ? GRID.reveal(VIEW, g) : null;
+  beginPaint('playGrid');
+  app.innerHTML = '';
+  app.append(el(`<div>
+    <div class="bar"><button class="back" id="back">\u2039 Back</button>
+      <span>${GRID.filledCount(g)}/9 filled</span>
+      <span class="score">${g.left} left</span></div>
+
+    <div class="gwrap">
+      <div class="gh corner"></div>
+      ${grid.cols.map(c => `<div class="gh">${esc(c.label)}</div>`).join('')}
+      ${grid.rows.map((r, ri) => `
+        <div class="gh side">${esc(r.label)}</div>
+        ${grid.cols.map((_, ci) => gridCell(g, ri, ci, revealed)).join('')}`).join('')}
+    </div>
+
+    ${g.finished ? `
+      <div class="fb"><div class="h ${GRID.filledCount(g) === 9 ? 'ok' : 'no'}">${
+        GRID.filledCount(g) === 9 ? 'Perfect grid' : `${GRID.filledCount(g)} of 9`}</div>
+        <div class="d">${GRID.filledCount(g) === 9
+          ? 'Every square, and none of them twice.'
+          : 'The greyed names are one answer each \u2014 there were others.'}</div></div>
+      <button class="btn" id="again">New grid</button>
+      <button class="btn ghost" id="home2">Home</button>`
+    : GRSEL ? `
+      <div class="turnline"><b>${esc(grid.rows[GRSEL.r].label)}</b> and
+        <b>${esc(grid.cols[GRSEL.c].label)}</b></div>
+      <input id="gin" placeholder="Name a player who fits both" autocomplete="off"
+        autocapitalize="words" autocorrect="off" spellcheck="false">
+      <div class="sugg" id="gsug" hidden></div>
+      <button class="btn" id="gsubmit">Answer</button>
+      <button class="btn ghost" id="gcancel">Pick another square</button>`
+    : `<div class="turnline">Tap a square. Name one player who fits the row
+        <b>and</b> the column \u2014 nobody twice, and every guess counts.</div>
+       <button class="btn ghost" id="giveup">Give up</button>`}
+
+    ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}
+  </div>`));
+
+  document.getElementById('back').onclick = home;
+  const ag = document.getElementById('again'); if (ag) ag.onclick = setupGrid;
+  const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
+  const gu = document.getElementById('giveup');
+  if (gu) gu.onclick = () => { g.finished = true; GRSEL = null; playGrid(); };
+
+  app.querySelectorAll('.gc[data-r]').forEach(b => b.onclick = () => {
+    GRSEL = { r: +b.dataset.r, c: +b.dataset.c };
+    playGrid();
+  });
+
+  const gi = document.getElementById('gin');
+  if (!gi) return;
+  document.getElementById('gcancel').onclick = () => { GRSEL = null; playGrid(); };
+
+  const box = document.getElementById('gsug');
+  gi.oninput = () => {
+    const hits = suggest(VNAMES, gi.value, 6);
+    if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = hits.map(p => `<button class="sg" data-v="${esc(p.name)}">
+      <span class="n">${esc(p.name)}</span>
+      <span class="m">${esc([p.nationality, p.position].filter(Boolean).join(' \u00b7 '))}</span></button>`).join('');
+    box.querySelectorAll('.sg').forEach(x => x.onclick = () => {
+      gi.value = x.dataset.v; box.hidden = true; box.innerHTML = '';
+    });
+  };
+  const go = () => {
+    const v = gi.value.trim(); if (!v) return;
+    const { r, c } = GRSEL;
+    const res = GRID.submit(VIEW, VNAMES, g, r, c, v, lookup);
+    GRID.apply(g, res, r, c);
+    // A right answer closes the square; a wrong one leaves it open, because the
+    // square is still unanswered and a guess has already been paid for it.
+    if (res.status === 'ok') GRSEL = null;
+    playGrid(GRID.explain(res), res.status === 'ok' ? 'ok' : 'no');
+  };
+  document.getElementById('gsubmit').onclick = go;
+  gi.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  gi.focus();
 }
 
 /* ---------------- Played for Both ---------------- */

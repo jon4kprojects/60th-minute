@@ -339,3 +339,24 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
   color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;
   text-underline-offset:3px;cursor:pointer}
 .linkish:active{color:var(--hot)}
+
+/* The Grid. Category names sit in the boxes where crests would go, so the
+   labels have to stay legible at phone width - hence the small, tight type
+   and a row header narrow enough to leave the squares square. */
+.gwrap{display:grid;grid-template-columns:74px repeat(3,1fr);gap:5px;margin:6px 0 16px}
+.gh{display:grid;place-items:center;text-align:center;padding:6px 4px;border-radius:10px;
+  background:var(--card);border:1px solid var(--line);
+  font-size:10.5px;font-weight:750;line-height:1.2;letter-spacing:.01em;
+  min-height:44px;overflow:hidden;overflow-wrap:anywhere;word-break:normal}
+.gh.side{min-height:0}
+.gh.corner{background:none;border:0}
+.gc{aspect-ratio:1;border-radius:11px;background:#12151c;border:1px solid var(--line);
+  display:grid;place-items:center;padding:4px;cursor:pointer;
+  transition:transform .12s ease,border-color .12s ease,background .12s ease}
+.gc:active{transform:scale(.96)}
+.gc.on{border-color:var(--hot);background:rgba(255,122,44,.09)}
+.gc span{font-size:11px;font-weight:700;line-height:1.2;text-align:center;
+  overflow-wrap:anywhere;color:var(--text)}
+.gc.done{background:rgba(255,122,44,.13);border-color:var(--hot)}
+.gc.miss{background:var(--card);opacity:.55}
+.gc.miss span{color:var(--muted);font-weight:600}
