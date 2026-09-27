@@ -13,6 +13,9 @@ const MIN_ANSWERS = 3;      // a square with one answer is a lottery, not a ques
 
 const ok = (p) => !p.noStats && !p.statsSuspect;
 
+/** Accent-folded, for comparing names a human typed without the diacritics. */
+const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 /**
  * The categories a grid can be built from. Each carries the set of players who
  * satisfy it, so building a grid is set intersection rather than a scan.
@@ -127,8 +130,11 @@ export function submit(db, nameIdx, game, r, c, text, lookup) {
   // Exact name only - matching loosely would let a half-typed surname find
   // whoever happened to fit, which is the answer, not a guess at it.
   if (!ids.has(p.id) && !game.used.has(p.id)) {
+    // Folded, because Gerson and Gérson are two different Brazilians and the
+    // lookup returns the better-known one. If the namesake is the answer to
+    // this square, that is plainly who was meant.
     const twin = [...ids].map(id => db.byId.get(id))
-      .find(o => o && o.name.toLowerCase() === p.name.toLowerCase());
+      .find(o => o && fold(o.name) === fold(p.name));
     if (twin) p = twin;
   }
   if (game.used.has(p.id)) return { status: 'used', player: p };
