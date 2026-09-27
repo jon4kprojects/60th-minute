@@ -29,12 +29,14 @@ const r1 = say('Zola');                        // 312 - large scores now count
 ok(r1.status === 'ok' && r1.score === r1.raw, `Zola (${r1.raw}) counts in full, no maximum visit`);
 const r2 = say('Madueke');
 ok(r2.raw > 0 && r2.raw <= 180, `Madueke returns a usable number (${r2.raw})`);
-// Coverage gap worth keeping visible: club rosters come from Wikipedia and are
-// far bigger than our Wikidata-derived player set, so a club's record holder
-// may not be a nameable player. Ron Harris made 795 for Chelsea and is absent.
+// This used to assert the opposite. Club rosters come from Wikipedia and were
+// far bigger than our player set, so a club's record holder was often not a
+// nameable player - Ron Harris made 795 for Chelsea and was simply absent.
+// Widening the extract past the famous few closed that gap, and the assertion
+// now guards against it reopening.
 const rHarris = F.scoreEntry(db, idx, g, 'Ron Harris');
-ok(rHarris.status === 'unknown',
-   'known gap: Chelsea record holder Ron Harris is not in our player set');
+ok(rHarris.status !== 'unknown',
+   `Chelsea record holder Ron Harris is nameable (${rHarris.status})`);
 const r3 = say('Ryan Giggs');                  // never played for Chelsea
 ok(r3.status === 'ineligible', 'Giggs rejected as ineligible for Chelsea');
 const r4 = say('Zola');

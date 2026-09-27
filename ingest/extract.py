@@ -13,7 +13,10 @@ Notes on the quirks this works around, all verified against live data:
 """
 import json, subprocess, sys, os, time
 
-EP = "https://qlever.cs.uni-freiburg.de/api/wikidata"
+# qlever.cs.uni-freiburg.de now 308-redirects here. curl -L follows it, but the
+# extra hop is one more chance for the handshake to drop, and it drops often.
+EP = "https://qlever.dev/api/wikidata"
+ATTEMPTS = 12
 TOP_N = int(os.environ.get("TOP_N", "2500"))
 OUT = os.path.join(os.path.dirname(__file__), "out")
 
@@ -35,25 +38,31 @@ FAMOUS = "{ SELECT ?p ?n WHERE { ?p wdt:P106 wd:Q937857 . ?p wikibase:sitelinks 
 
 def sparql(query, label):
     """POST to QLever via curl (urllib does not follow the endpoint's 308 on POST)."""
+    # The endpoint refuses roughly two connections in five with an SSL syscall
+    # error - not a rate limit, it never gets as far as a request. Three tries
+    # was a 6% chance of abandoning a query outright, which is how a six-hour
+    # extract died in its first minute. Retry hard and it costs nothing.
     t0 = time.time()
-    for attempt in range(1, 4):
+    for attempt in range(1, ATTEMPTS + 1):
         r = subprocess.run(
             ["curl", "-sSL", "-X", "POST", EP,
              "-H", "Accept: application/sparql-results+json",
              "-H", "Content-Type: application/sparql-query",
              "-H", "User-Agent: FootballQuizMVP/0.1 (one-off dataset build)",
-             "--max-time", "300", "--data-binary", PREFIXES + query],
+             "--retry", "6", "--retry-delay", "3", "--retry-all-errors",
+             "--max-time", "1800", "--data-binary", PREFIXES + query],
             capture_output=True, text=True)
         try:
             rows = json.loads(r.stdout)["results"]["bindings"]
-            print(f"  {label:22s} {len(rows):7,d} rows  ({time.time()-t0:.1f}s)")
+            print(f"  {label:22s} {len(rows):7,d} rows  ({time.time()-t0:.1f}s)", flush=True)
             return rows
         except Exception:
-            snippet = (r.stdout or r.stderr)[:300]
-            print(f"  {label}: attempt {attempt} failed -> {snippet}", file=sys.stderr)
-            if attempt == 3:
-                raise SystemExit(f"{label}: giving up")
-            time.sleep(5 * attempt)
+            snippet = (r.stdout or r.stderr).strip()[:200]
+            print(f"  {label}: attempt {attempt}/{ATTEMPTS} failed -> {snippet}",
+                  file=sys.stderr, flush=True)
+            if attempt == ATTEMPTS:
+                raise SystemExit(f"{label}: giving up after {ATTEMPTS} attempts")
+            time.sleep(min(60, 5 * attempt))
 
 
 QUERIES = {

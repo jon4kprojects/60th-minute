@@ -87,6 +87,7 @@ export async function loadData() {
   buildIndexes(DB);
   DB.topFiveClubs = new Set(raw.topFiveClubs || []);
   DB.clubCountry = raw.clubCountry || {};
+  DB.clubColours = raw.clubColours || {};
   return DB;
 }
 
@@ -157,3 +158,71 @@ export const shortClub = (name) => name
   .replace(/^(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)\s+/i, '')
   .replace(/\s+(Club de Fútbol|Football Club|Calcio)$/i, '')
   .trim();
+
+/* ---------------- Club and country colours ---------------- */
+
+// Crests are trademarks and this app will never ship one. Colours are facts:
+// a red tile with white lettering says "Arsenal" to anyone who follows football
+// without borrowing anybody's mark.
+//
+// Wikidata records colours for about a tenth of the clubs we hold, which is the
+// famous tenth - the ones that actually turn up as categories. The rest get a
+// colour derived from the name: stable, distinct, and close enough to a kit
+// that a board of them looks deliberate rather than random.
+const NATION_COLOURS = {
+  Argentina: ['#6fa8dc', '#0b3c66'], Brazil: ['#f2c230', '#0f7a43'],
+  England: ['#f2f4f7', '#c8102e'], Scotland: ['#16264a', '#f2f4f7'],
+  Wales: ['#c8102e', '#f2f4f7'], 'Northern Ireland': ['#1f4ea1', '#f2f4f7'],
+  'Republic of Ireland': ['#0f7a43', '#f2f4f7'], Ireland: ['#0f7a43', '#f2f4f7'],
+  France: ['#1f4ea1', '#f2f4f7'], Germany: ['#1b1e24', '#f2c230'],
+  Italy: ['#1f4ea1', '#f2f4f7'], Spain: ['#c8102e', '#f2c230'],
+  Portugal: ['#0f7a43', '#c8102e'], Netherlands: ['#e2661f', '#f2f4f7'],
+  Belgium: ['#1b1e24', '#f2c230'], Croatia: ['#c8102e', '#f2f4f7'],
+  Uruguay: ['#5fa8dc', '#16264a'], Colombia: ['#f2c230', '#1f4ea1'],
+  Mexico: ['#0f7a43', '#f2f4f7'], 'United States': ['#16264a', '#f2f4f7'],
+  Sweden: ['#1f4ea1', '#f2c230'], Denmark: ['#c8102e', '#f2f4f7'],
+  Norway: ['#c8102e', '#16264a'], Poland: ['#f2f4f7', '#c8102e'],
+  Russia: ['#f2f4f7', '#1f4ea1'], Ukraine: ['#1f4ea1', '#f2c230'],
+  Serbia: ['#16264a', '#f2f4f7'], Turkey: ['#c8102e', '#f2f4f7'],
+  Greece: ['#1f4ea1', '#f2f4f7'], Switzerland: ['#c8102e', '#f2f4f7'],
+  Austria: ['#c8102e', '#f2f4f7'], Japan: ['#16264a', '#f2f4f7'],
+  'South Korea': ['#c8102e', '#f2f4f7'], Australia: ['#f2c230', '#0f7a43'],
+  Nigeria: ['#0f7a43', '#f2f4f7'], Ghana: ['#c8102e', '#f2c230'],
+  Senegal: ['#0f7a43', '#f2c230'], Cameroon: ['#0f7a43', '#c8102e'],
+  Ivory: ['#e2661f', '#f2f4f7'], Morocco: ['#c8102e', '#0f7a43'],
+  Egypt: ['#c8102e', '#1b1e24'], Chile: ['#c8102e', '#1f4ea1'],
+  Paraguay: ['#c8102e', '#1f4ea1'], Peru: ['#c8102e', '#f2f4f7'],
+  'Czech Republic': ['#1f4ea1', '#f2f4f7'], Romania: ['#f2c230', '#1f4ea1'],
+  Hungary: ['#0f7a43', '#c8102e'], Bulgaria: ['#0f7a43', '#f2f4f7'],
+};
+
+// Kit-plausible shades only: enough hues to tell clubs apart, none of the
+// fluorescent corners of the colour wheel that no side has ever played in.
+const FALLBACK = [
+  ['#1f4ea1', '#ffffff'], ['#c8102e', '#ffffff'], ['#0f7a43', '#ffffff'],
+  ['#5b2a86', '#ffffff'], ['#16264a', '#ffffff'], ['#6d1028', '#ffffff'],
+  ['#e2661f', '#1b1e24'], ['#1b1e24', '#f2f4f7'], ['#2aa9b8', '#1b1e24'],
+  ['#6b4423', '#f2f4f7'], ['#0b5c33', '#f2c230'], ['#3b7fc4', '#16264a'],
+];
+
+/** Stable per-name choice, so a club looks the same on every screen and launch. */
+function fallbackColour(name) {
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return FALLBACK[Math.abs(h) % FALLBACK.length];
+}
+
+/**
+ * [background, lettering] for a club or country label.
+ * `key` is the full club name as the dataset stores it; `label` is what the
+ * tile actually shows, and is what the fallback hashes so two clubs sharing a
+ * shortened label never share a tile.
+ */
+export function teamColour(db, key, label = key, isCountry = false) {
+  if (isCountry && NATION_COLOURS[key]) return NATION_COLOURS[key];
+  const c = db.clubColours && db.clubColours[key];
+  return c || fallbackColour(label);
+}

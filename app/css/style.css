@@ -360,3 +360,6 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .gc.done{background:rgba(255,122,44,.13);border-color:var(--hot)}
 .gc.miss{background:var(--card);opacity:.55}
 .gc.miss span{color:var(--muted);font-weight:600}
+/* A rule, not a team. Without this a black club - Juventus, Corinthians,
+   Atletico Mineiro - is indistinguishable from an unfilled category tile. */
+.gh.trait{background:transparent;border-style:dashed;color:var(--muted)}

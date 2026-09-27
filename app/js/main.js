@@ -1,4 +1,4 @@
-import { loadData, checkForUpdate, filterDB } from './data.js';
+import { loadData, checkForUpdate, filterDB, teamColour } from './data.js';
 import { MODES, buildRound } from './engine/index.js';
 import { mulberry32, seedFrom } from './rng.js';
 import { buildNameIndex, suggest, lookup } from './names.js';
@@ -7,7 +7,7 @@ import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 
-const BUILD = 'b51.0d9003f';
+const BUILD = 'b55.cb90414';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -613,6 +613,18 @@ function setupGrid() {
   playGrid();
 }
 
+/**
+ * A club or country tile wears its colours; a trait ("100+ caps") has none to
+ * wear and keeps the card styling, which also stops a board of nine coloured
+ * blocks from reading as noise.
+ */
+function tile(cat, extra) {
+  if (cat.kind === 'trait')
+    return `<div class="gh trait${extra}">${esc(cat.label)}</div>`;
+  const [bg, fg] = teamColour(VIEW, cat.key.slice(2), cat.label, cat.kind === 'country');
+  return `<div class="gh${extra}" style="background:${bg};color:${fg}">${esc(cat.label)}</div>`;
+}
+
 function gridCell(game, r, c, revealed) {
   const f = game.filled[r][c];
   if (f) return `<button class="gc done" disabled><span>${esc(f.name)}</span></button>`;
@@ -633,9 +645,9 @@ function playGrid(msg = null, tone = '') {
 
     <div class="gwrap">
       <div class="gh corner"></div>
-      ${grid.cols.map(c => `<div class="gh">${esc(c.label)}</div>`).join('')}
+      ${grid.cols.map(c => tile(c, '')).join('')}
       ${grid.rows.map((r, ri) => `
-        <div class="gh side">${esc(r.label)}</div>
+        ${tile(r, ' side')}
         ${grid.cols.map((_, ci) => gridCell(g, ri, ci, revealed)).join('')}`).join('')}
     </div>
 

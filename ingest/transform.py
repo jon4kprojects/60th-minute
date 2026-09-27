@@ -27,6 +27,11 @@ MAX_CLUB_APPS = 1100
 
 MIN_CAREER_APPS = 150   # separates footballers from famous people who played a bit
 MIN_SPELL_APPS  = 15    # below this, a spell is noise in a career path
+# Two dated senior spells. Camus, Bohr, Connery, Julio Iglesias and the Pope
+# all have exactly one club, which is what separates a famous man who played a
+# bit from a professional whose figures nobody recorded. Three lost Alexandra
+# Popp and Adam Marusic, who are neither.
+MIN_CAREER_SPELLS = int(os.environ.get("MIN_CAREER_SPELLS", "2"))
 MIN_CLUBS       = 1     # keep one-club legends (Giggs, Totti, Maldini):
                         # Football 501 needs them, and Career Path filters
                         # for >=3 clubs at generation time anyway
@@ -163,9 +168,16 @@ for pid, p in players.items():
     # bit (Camus, Niels Bohr) - they have no appearance statements at all.
     # Someone like Maldini, whose only figure was a typo, is a real footballer
     # with unusable stats: keep him, but withhold the numbers.
+    # Wikidata records appearances for only some spells of many real careers:
+    # Doucoure's figures total 75 because only his Rennes years carry one, and
+    # judging the career by that threw out a Premier League midfielder. Several
+    # dated senior spells make a footballer whether or not anyone wrote the
+    # numbers down - what he is not is someone we can quote figures for.
+    # Camus and Niels Bohr have one club apiece, which is what the floor is for.
+    dated = [s for s in raw if s["start"] and not RESERVE_RE.search(s["club"] or "")]
     no_stats = False
     if career_apps < MIN_CAREER_APPS:
-        if pid in had_apps_stmt and p["fame"] >= 55:
+        if len(dated) >= MIN_CAREER_SPELLS or (pid in had_apps_stmt and p["fame"] >= 55):
             no_stats = True
         else:
             rejected["too few career apps"] += 1; continue
@@ -252,6 +264,16 @@ os.makedirs(OUT, exist_ok=True)
 # of the app itself - no store release needed to ship better football data.
 import hashlib, datetime, subprocess
 payload = {"source": "wikidata-qlever", "players": out}
+
+# Club colours stand in for crests, which are trademarks we will not ship. Only
+# clubs Wikidata actually records are carried; the app derives a colour from the
+# name for the rest, so nothing has to be stored for the long tail.
+_col = os.path.join(OUT, "club_colours.json")
+if os.path.exists(_col):
+    seen = {c for p in out for c in p["allClubs"]}
+    allcol = json.load(open(_col))
+    payload["clubColours"] = {k: v for k, v in allcol.items() if k in seen}
+    print(f"club colours carried  {len(payload['clubColours']):,} of {len(seen):,} clubs")
 body = json.dumps(payload, separators=(",", ":"))
 digest = hashlib.sha256(body.encode()).hexdigest()[:12]
 built = datetime.date.today().isoformat()
