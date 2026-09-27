@@ -7,7 +7,7 @@ import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 
-const BUILD = 'b59.876a0ef';
+const BUILD = 'b60.5659d0c';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -105,8 +105,11 @@ const store = {
   set best(v) { try { localStorage.setItem('best', v); } catch {} },
   doneToday() { try { return localStorage.getItem('daily') === today(); } catch { return false; } },
   markToday() { try { localStorage.setItem('daily', today()); } catch {} },
-  get era() { try { return +localStorage.getItem('era') || 0; } catch { return 0; } },
-  set era(v) { try { localStorage.setItem('era', v || 0); } catch {} },
+  // Era is per game, not per app. Picking 2010 for a round of Higher or Lower
+  // should not quietly narrow the Chain you play next, and each game remembers
+  // what it was last played at.
+  eraFor(key) { try { return +localStorage.getItem('era:' + key) || 0; } catch { return 0; } },
+  setEra(key, v) { try { localStorage.setItem('era:' + key, v || 0); } catch {} },
   get topFive() { try { return localStorage.getItem('t5') === '1'; } catch { return false; } },
   set topFive(v) { try { localStorage.setItem('t5', v ? '1' : ''); } catch {} },
 };
@@ -117,8 +120,8 @@ let VIEW = null, VNAMES = null, VCLUBS = null, CH = null;
 // Filters are applied to the data BEFORE a round starts, not inside each
 // generator: a generator that forgot one would quietly serve players the
 // filter was meant to exclude.
-function refreshView() {
-  VIEW = filterDB(DB, { since: store.era || null, topFive: store.topFive });
+function refreshView(key = null) {
+  VIEW = filterDB(DB, { since: (key && store.eraFor(key)) || null, topFive: store.topFive });
   VNAMES = buildNameIndex(VIEW.players);
   VCLUBS = CHN.buildClubIndex(VIEW);
 }
@@ -143,16 +146,6 @@ function home() {
     <img class="logo" src="./brand/logo-lockup.svg" width="250" alt="60th Minute">
     <div class="tag">${DB.players.length.toLocaleString()} players · 1940s to today</div>
     <div class="dataver">Build ${esc(BUILD)} · data ${esc(DB.version)}</div>
-    <label style="margin-top:2px">Career started</label>
-    <div class="chips" id="era">
-      ${[[0,'Any'],[1990,'1990 or later'],[2000,'2000 or later'],[2010,'2010 or later']].map(([y,l]) =>
-        `<button class="chip ${store.era === y ? 'on' : ''}" data-y="${y}">${l}</button>`).join('')}
-    </div>
-    <div class="tag" style="margin:8px 2px 18px">${store.era
-      ? `Only players whose <b>first season at a club</b> was ${store.era} or later \u2014
-         ${VIEW.players.length.toLocaleString()} of them. A career that began earlier is out, however
-         long it ran.`
-      : 'Every player we hold, whenever they started \u2014 back to the 1940s.'}</div>
     <button class="card hot" data-go="f501">
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="chain">
@@ -171,9 +164,6 @@ function home() {
     ${store.best ? `<div class="tag" style="margin-top:10px">Best round ${store.best} correct</div>` : ''}
     <button class="linkish" id="getit">Get it on another phone</button>
   </div>`));
-  app.querySelectorAll('#era .chip').forEach(c => c.onclick = () => {
-    store.era = +c.dataset.y; refreshView(); home();
-  });
   document.getElementById('getit').onclick = () => { enterScreen(); landing(); };
   app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
     const g = b.dataset.go;
@@ -181,7 +171,35 @@ function home() {
     if (g === 'pfb') return setupPFB();
     if (g === 'chain') return setupChain();
     if (g === 'grid') return setupGrid();
+    if (MODES[g]) return setupQuiz(g);
     start(g);
+  });
+}
+
+const ERAS = [[0, 'Any'], [1990, '1990 or later'], [2000, '2000 or later'], [2010, '2010 or later']];
+
+/**
+ * The era control, rendered into a game's own setup rather than the home
+ * screen. Whose players a round is drawn from is part of setting that round
+ * up, and it reads as a global preference when it sits above every game.
+ */
+function eraRow(key) {
+  const cur = store.eraFor(key);
+  return `<label>Career started</label>
+    <div class="chips erapick">${ERAS.map(([y, l]) =>
+      `<button class="chip ${cur === y ? 'on' : ''}" data-y="${y}">${esc(l)}</button>`).join('')}</div>
+    <div class="tag" style="margin:6px 2px 14px">${cur
+      ? `Only players whose <b>first season at a club</b> was ${cur} or later \u2014
+         ${VIEW.players.length.toLocaleString()} of them. A career that began earlier is out,
+         however long it ran.`
+      : 'Every player we hold, whenever they started \u2014 back to the 1940s.'}</div>`;
+}
+
+function wireEra(key, redraw) {
+  app.querySelectorAll('.erapick .chip').forEach(c => c.onclick = () => {
+    store.setEra(key, +c.dataset.y);
+    refreshView(key);
+    redraw();
   });
 }
 
@@ -250,8 +268,12 @@ function installGuide(p) {
 /* ---------------- Football 501 ---------------- */
 function setup501() {
   enterScreen();
-  const clubs = F501.clubsWithDepth(VIEW, 15).slice()
+  refreshView('f501');
+  // Which clubs have enough depth to score a leg depends on the era, so the
+  // list is rebuilt whenever it changes rather than captured once.
+  const clubList = () => F501.clubsWithDepth(VIEW, 15).slice()
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
+  let clubs = clubList();
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
 
   // Every control redraws the whole panel, so typed names must survive it.
@@ -279,6 +301,7 @@ function setup501() {
       <div class="tag">Everyone starts on 501. Name players who turned out for the club —
         their number comes off your score. Go below zero and you bust.</div>
 
+      ${eraRow('f501')}
       <label>Club</label>
       <input id="clubq" placeholder="Type a club" value="${esc(filter)}"
         autocomplete="off" autocorrect="off" spellcheck="false">
@@ -311,6 +334,9 @@ function setup501() {
       <button class="btn" id="go" ${club ? '' : 'disabled'}>${club ? 'Start' : 'Choose a club'}</button></div>`));
 
     document.getElementById('back').onclick = home;
+    // A club that had depth under one era may not under another, so the choice
+    // is cleared rather than left pointing at a club that is no longer offered.
+    wireEra('f501', () => { clubs = clubList(); club = null; redraw(); });
     const q = document.getElementById('clubq');
     const box = document.getElementById('clublist');
     const clr = document.getElementById('clear');
@@ -439,6 +465,7 @@ function play501(msg = null, tone = '') {
 /* ---------------- The Chain ---------------- */
 function setupChain() {
   enterScreen();
+  refreshView('chain');
   let n = 2;
   const draw = () => {
     beginPaint('setupChain');
@@ -450,6 +477,7 @@ function setupChain() {
       <div class="tag">A team is on the table. Name someone who played for it, and
         another team they played for \u2014 that team is next. Clubs and countries both
         count. Nothing twice, 60 seconds a turn, three lives each.</div>
+      ${eraRow('chain')}
       <label>Players</label>
       <div class="chips" id="np">${[2,3,4].map(i =>
         `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
@@ -457,6 +485,7 @@ function setupChain() {
         `<input class="nm" placeholder="Player ${i+1}" style="margin-top:8px">`).join('')}</div>
       <button class="btn" id="go">Play</button></div>`));
     document.getElementById('back').onclick = home;
+    wireEra('chain', draw);
     app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => {
       const keep = [...app.querySelectorAll('.nm')].map(i => i.value);
       n = +c.dataset.n; draw();
@@ -606,8 +635,29 @@ let GRSEL = null;      // the square being answered, or null
 
 function setupGrid() {
   enterScreen();
+  refreshView('grid');
+  const draw = () => {
+    beginPaint('setupGrid');
+    app.innerHTML = '';
+    app.append(el(`<div>
+      <div class="bar"><button class="back" id="back">\u2039 Back</button></div>
+      <div class="kicker">The Grid</div>
+      <h1 style="font-size:30px">Nine <em>squares</em></h1>
+      <div class="tag">Every square wants one player who fits the row and the column.
+        Nine guesses, nobody twice, and a guess counts whether it lands or not.</div>
+      ${eraRow('grid')}
+      <button class="btn" id="go">Play</button></div>`));
+    document.getElementById('back').onclick = home;
+    wireEra('grid', draw);
+    document.getElementById('go').onclick = newGrid;
+  };
+  draw();
+}
+
+function newGrid() {
+  enterScreen();
   const g = GRID.generate(VIEW, mulberry32((Math.random() * 2 ** 32) >>> 0));
-  if (!g) return alert('Could not build a grid with these filters. Try widening the era.');
+  if (!g) return alert('Could not build a grid from that era. Try widening it.');
   GR = GRID.createGame(g);
   GRSEL = null;
   playGrid();
@@ -675,7 +725,7 @@ function playGrid(msg = null, tone = '') {
   </div>`));
 
   document.getElementById('back').onclick = home;
-  const ag = document.getElementById('again'); if (ag) ag.onclick = setupGrid;
+  const ag = document.getElementById('again'); if (ag) ag.onclick = newGrid;
   const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
   const gu = document.getElementById('giveup');
   if (gu) gu.onclick = () => { g.finished = true; GRSEL = null; playGrid(); };
@@ -721,6 +771,7 @@ let PB = null;
 
 function setupPFB() {
   enterScreen();
+  refreshView('pfb');
   const clubs = PFB.clubChoices(DB);
   let mode = 'random', n = 2, chosen = [];
 
@@ -739,6 +790,7 @@ function setupPFB() {
       <div class="tag">Name every player who turned out for <b>all</b> of the
         chosen clubs. Three lives.</div>
 
+      ${eraRow('pfb')}
       <label>Leagues</label>
       <div class="chips" id="t5">
         <button class="chip ${store.topFive ? '' : 'on'}" data-t="0">All clubs</button>
@@ -791,8 +843,9 @@ function setupPFB() {
     </div>`));
 
     document.getElementById('back').onclick = home;
+    wireEra('pfb', () => { chosen = []; draw(); });
     app.querySelectorAll('#t5 .chip').forEach(c => c.onclick = () => {
-      store.topFive = c.dataset.t === '1'; refreshView(); chosen = []; setupPFB();
+      store.topFive = c.dataset.t === '1'; refreshView('pfb'); chosen = []; setupPFB();
     });
     app.querySelectorAll('#mode .chip').forEach(c => c.onclick = () => { mode = c.dataset.m; draw(); });
     app.querySelectorAll('#n .chip').forEach(c => c.onclick = () => {
@@ -963,9 +1016,33 @@ function playPFB(msg = null, tone = '') {
 }
 
 /* ---------------- question modes ---------------- */
+function setupQuiz(mode) {
+  enterScreen();
+  refreshView(mode);
+  const m = MODES[mode];
+  const draw = () => {
+    beginPaint('setupQuiz');
+    app.innerHTML = '';
+    app.append(el(`<div>
+      <div class="bar"><button class="back" id="back">\u2039 Back</button></div>
+      <div class="kicker">${esc(m.title)}</div>
+      <h1 style="font-size:30px">${esc(m.blurb)}</h1>
+      <div class="tag">Ten questions.</div>
+      ${eraRow(mode)}
+      <button class="btn" id="go">Play</button></div>`));
+    document.getElementById('back').onclick = home;
+    wireEra(mode, draw);
+    document.getElementById('go').onclick = () => start(mode);
+  };
+  draw();
+}
+
 function start(mode) {
   enterScreen();
   const daily = mode === 'daily';
+  // The daily round has to be identical for everyone who plays it, so it is
+  // drawn from the whole dataset regardless of what any game is filtered to.
+  refreshView(daily ? null : mode);
   const rnd = mulberry32(daily ? seedFrom('daily-' + today()) : (Math.random() * 2 ** 32) >>> 0);
   const keys = daily ? Object.keys(MODES) : [mode];
   const qs = buildRound(VIEW, rnd, keys, 10);
