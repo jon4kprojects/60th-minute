@@ -7,7 +7,7 @@ import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 
-const BUILD = 'b55.cb90414';
+const BUILD = 'b56.4406097';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
