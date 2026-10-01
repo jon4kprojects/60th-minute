@@ -1,4 +1,4 @@
-import { loadData, checkForUpdate, filterDB, teamColour } from './data.js';
+import { loadData, checkForUpdate, filterDB, teamColour, loadWorld } from './data.js';
 import { MODES, buildRound } from './engine/index.js';
 import { mulberry32, seedFrom } from './rng.js';
 import { buildNameIndex, suggest, lookup } from './names.js';
@@ -6,8 +6,9 @@ import * as F501 from './engine/football501.js';
 import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
+import * as CC from './engine/countryConundrum.js';
 
-const BUILD = 'b65.65f3f28';
+const BUILD = 'b69.407b256';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -150,6 +151,8 @@ function home() {
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="chain">
       <div class="t">The Chain</div><div class="b">Player, team, player, team · 2–4 players</div></button>
+    <button class="card hot" data-go="cc">
+      <div class="t">Country Conundrum</div><div class="b">Find 30 nations on the map \u00b7 solo</div></button>
     <button class="card hot" data-go="grid">
       <div class="t">The Grid</div><div class="b">Nine squares \u00b7 one player who fits both</div></button>
     <button class="card hot" data-go="pfb">
@@ -171,6 +174,7 @@ function home() {
     if (g === 'pfb') return setupPFB();
     if (g === 'chain') return setupChain();
     if (g === 'grid') return setupGrid();
+    if (g === 'cc') return setupCC();
     if (MODES[g]) return setupQuiz(g);
     start(g);
   });
@@ -758,6 +762,231 @@ function playChain(msg = null, tone = '') {
   ci.onkeydown = (e) => { if (e.key === 'Enter') go(); };
   pi.focus();
   runChainClock();
+}
+
+/* ---------------- Country Conundrum ---------------- */
+
+let CCG = null, CCW = null, CCFLASH = null;
+
+async function setupCC() {
+  enterScreen();
+  refreshView('cc');
+  beginPaint('setupCC');
+  app.innerHTML = '<div class="loading">Unrolling the map\u2026</div>';
+  try {
+    CCW = await loadWorld();
+  } catch {
+    app.innerHTML = '<div class="loading">Map unavailable offline yet.<br>' +
+      '<small>Open once with a signal and it is yours for good.</small></div>';
+    return;
+  }
+  const choices = CC.clubChoices(VIEW, CCW.placed, CC.TARGET);
+  const draw = () => {
+    beginPaint('setupCC');
+    app.innerHTML = '';
+    app.append(el(`<div>
+      <div class="bar"><button class="back" id="back">\u2039 Back</button></div>
+      <div class="kicker">Country Conundrum</div>
+      <h1 style="font-size:30px">Name the <em>world</em></h1>
+      <div class="tag">A club, and a map. Find ${CC.TARGET} countries whose players have
+        turned out for them. Green means somebody did, red means nobody has, and a red
+        country stays red. Score is the share of your guesses that land.</div>
+      ${eraRow('cc')}
+      <div class="tag" style="margin:2px 2px 14px">${choices.length.toLocaleString()} clubs
+        have ${CC.TARGET} or more countries to find.</div>
+      <button class="btn" id="go">Deal me a club</button></div>`));
+    document.getElementById('back').onclick = home;
+    wireEra('cc', () => setupCC());
+    document.getElementById('go').onclick = () => {
+      const picked = CC.pickClub(choices, mulberry32((Math.random() * 2 ** 32) >>> 0));
+      if (!picked) return alert('No club has enough countries under that era.');
+      CCG = CC.createGame({ club: picked.name,
+                            answers: CC.answersFor(VIEW, picked.name, CCW.placed) });
+      CCFLASH = null;
+      playCC();
+    };
+  };
+  draw();
+}
+
+/**
+ * The map is drawn once and then only its classes change. Rebuilding 180 paths
+ * on every guess made each tap feel like a page load.
+ */
+function mapSVG() {
+  const inert = CCW.inert.map(d => `<path class="cci" d="${d}"/>`).join('');
+  const lands = Object.entries(CCW.countries).map(([name, d]) =>
+    `<path class="ccp" data-c="${esc(name)}" d="${d}"/>`).join('');
+  return `<svg class="worldmap" viewBox="${CCW.viewBox}" preserveAspectRatio="xMidYMid meet"
+    role="img" aria-label="World map"><g id="ccz">${inert}${lands}</g></svg>`;
+}
+
+// Luxembourg is four pixels wide on a phone at full extent. Drag to move, pinch
+// or the buttons to zoom - without this the map is a picture, not a control.
+function wireMapZoom() {
+  const svg = app.querySelector('.worldmap');
+  const g = document.getElementById('ccz');
+  if (!svg || !g) return;
+  let k = 1, tx = 0, ty = 0;
+  const VB = CCW.viewBox.split(' ').map(Number);
+  const apply = () => {
+    const maxX = VB[2] * (k - 1), maxY = VB[3] * (k - 1);
+    tx = Math.min(0, Math.max(-maxX, tx));
+    ty = Math.min(0, Math.max(-maxY, ty));
+    g.setAttribute('transform', `translate(${tx} ${ty}) scale(${k})`);
+  };
+  const zoomAt = (f, cx, cy) => {
+    const nk = Math.min(8, Math.max(1, k * f));
+    // keep the point under the fingers where it was
+    tx = cx - (cx - tx) * (nk / k);
+    ty = cy - (cy - ty) * (nk / k);
+    k = nk;
+    if (k === 1) { tx = 0; ty = 0; }
+    apply();
+  };
+  const toSvg = (cx, cy) => {
+    const r = svg.getBoundingClientRect();
+    return [(cx - r.left) / r.width * VB[2], (cy - r.top) / r.height * VB[3]];
+  };
+  const zi = document.getElementById('zin'), zo = document.getElementById('zout');
+  if (zi) zi.onclick = () => zoomAt(1.6, VB[2] / 2, VB[3] / 2);
+  if (zo) zo.onclick = () => zoomAt(1 / 1.6, VB[2] / 2, VB[3] / 2);
+
+  // A drag must not land as a tap on whatever country is under the finger.
+  let pts = new Map(), moved = 0, startDist = 0, startK = 1;
+  svg.addEventListener('pointerdown', (e) => {
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      startDist = Math.hypot(a[0] - b[0], a[1] - b[1]); startK = k;
+    }
+    moved = 0;
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId);
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 2 && startDist) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      const [cx, cy] = toSvg((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      const want = startK * (d / startDist);
+      zoomAt(want / k, cx, cy);
+      moved = 99;
+      return;
+    }
+    if (pts.size === 1 && k > 1) {
+      const r = svg.getBoundingClientRect();
+      tx += (e.clientX - prev[0]) / r.width * VB[2];
+      ty += (e.clientY - prev[1]) / r.height * VB[3];
+      moved += Math.abs(e.clientX - prev[0]) + Math.abs(e.clientY - prev[1]);
+      apply();
+    }
+  });
+  const end = (e) => { pts.delete(e.pointerId); if (pts.size < 2) startDist = 0; };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const [cx, cy] = toSvg(e.clientX, e.clientY);
+    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, cx, cy);
+  }, { passive: false });
+  svg.__moved = () => moved > 6;
+}
+
+function paintMapState() {
+  app.querySelectorAll('.ccp').forEach(el2 => {
+    const st = CC.stateOf(CCG, el2.dataset.c);
+    el2.classList.toggle('found', st === 'found');
+    el2.classList.toggle('wrong', st === 'wrong');
+  });
+}
+
+function playCC(justDrawn = false) {
+  const g = CCG;
+  if (!justDrawn) beginPaint('playCC');
+  app.innerHTML = '';
+  app.append(el(`<div>
+    <div class="bar"><button class="back" id="back">\u2039 Back</button>
+      <span>${g.found.size} / ${g.target} nations</span>
+      <span class="score">${g.guesses} ${g.guesses === 1 ? 'guess' : 'guesses'}</span></div>
+    <div class="ccclub">${esc(shortClub(g.club))}</div>
+
+    ${g.finished ? `
+      <div class="mapwrap done">${mapSVG()}</div>
+      <div class="fb"><div class="h ok">${g.found.size}/${g.target} nations found</div>
+        <div class="d">${g.guesses} guesses \u00b7 ${g.wrong.size} wrong \u00b7
+          <b>${CC.accuracy(g)}% accuracy</b></div></div>
+      <button class="btn" id="again">Another club</button>
+      <button class="btn ghost" id="home2">Home</button>`
+    : `
+      <div class="mapwrap">${mapSVG()}
+        <button class="zb" id="zin" aria-label="Zoom in">+</button>
+        <button class="zb out" id="zout" aria-label="Zoom out">\u2212</button></div>
+      <input id="ccq" placeholder="Tap the map, or type a country" autocomplete="off"
+        autocapitalize="words" autocorrect="off" spellcheck="false">
+      <div class="sugg" id="ccsug" hidden></div>`}
+    <div id="ccflash"></div>
+  </div>`));
+
+  document.getElementById('back').onclick = home;
+  const ag = document.getElementById('again'); if (ag) ag.onclick = setupCC;
+  const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
+  paintMapState();
+  if (CCFLASH) showFlash(CCFLASH);
+
+  wireMapZoom();
+  const svg = app.querySelector('.worldmap');
+  app.querySelectorAll('.ccp').forEach(el2 => el2.onclick = () => {
+    if (svg && svg.__moved && svg.__moved()) return;   // that was a pan, not a pick
+    submitCC(el2.dataset.c);
+  });
+
+  const q = document.getElementById('ccq');
+  if (!q) return;
+  // Typing is not a shortcut, it is the only way to hit Luxembourg on a phone.
+  const box = document.getElementById('ccsug');
+  q.oninput = () => {
+    const t = q.value.trim().toLowerCase();
+    const hits = t.length < 2 ? [] : [...CCW.placed]
+      .filter(c => c.toLowerCase().includes(t) && !g.found.has(c) && !g.wrong.has(c))
+      .sort((a, b) => a.length - b.length).slice(0, 6);
+    if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = hits.map(c => `<button class="sg" data-v="${esc(c)}">
+      <span class="n">${esc(c)}</span></button>`).join('');
+    box.querySelectorAll('.sg').forEach(b => b.onclick = () => {
+      q.value = ''; box.hidden = true; box.innerHTML = '';
+      submitCC(b.dataset.v);
+    });
+  };
+}
+
+function submitCC(country) {
+  const r = CC.guess(CCG, country);
+  if (r.status === 'already' || r.status === 'over') return;
+  CCFLASH = r;
+  // Only the one country changed, so the map is left alone and repainted in
+  // place - redrawing it would lose the scroll position and the zoom.
+  const el2 = app.querySelector(`.ccp[data-c="${CSS.escape(country)}"]`);
+  if (el2) el2.classList.add(r.status === 'correct' ? 'found' : 'wrong');
+  const head = app.querySelector('.bar span');
+  if (head) head.textContent = `${CCG.found.size} / ${CCG.target} nations`;
+  const gs = app.querySelector('.bar .score');
+  if (gs) gs.textContent = `${CCG.guesses} ${CCG.guesses === 1 ? 'guess' : 'guesses'}`;
+  if (CCG.finished) { CCFLASH = null; playCC(); return; }
+  showFlash(r);
+}
+
+function showFlash(r) {
+  const host = document.getElementById('ccflash');
+  if (!host) return;
+  host.innerHTML = r.status === 'correct'
+    ? `<div class="ccflash ok"><div class="c">${esc(r.country)} \u2713</div>
+       <div class="p">${esc(r.players.join(' \u00b7 '))}</div></div>`
+    : `<div class="ccflash no"><div class="c">${esc(r.country)} \u2717</div>
+       <div class="p">Nobody from there</div></div>`;
 }
 
 /* ---------------- The Grid ---------------- */

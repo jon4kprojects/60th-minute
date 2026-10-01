@@ -62,12 +62,35 @@ NAT_RE = re.compile(
     r"^(.*?)\s+(?:men's|women's)?\s*national\s+(?:association\s+)?"
     r"(?:football|soccer)?\s*team$", re.I)
 
+# Wikidata names some sides with the adjective ("Canadian men's national soccer
+# team"), and the parser hands back what it finds. These also fold the handful
+# of duplicate spellings onto one name, so a club does not appear to have
+# players from both Czechia and the Czech Republic.
+NAT_FIX = {
+    "Canadian": "Canada", "Cuban": "Cuba", "Czech Republic": "Czechia",
+    "Ireland": "Republic of Ireland", "Gambia": "The Gambia",
+    "Northern Ireland women\u2019s": "Northern Ireland",
+}
+
+# Not countries a footballer can represent. Catalonia, Galicia, Corsica and the
+# rest play friendlies and their players are capped by Spain or France; A2, A'
+# and League XI sides are second teams, the same reason reserve clubs are
+# stripped out of a career.
+NAT_DROP = {
+    "Catalonia", "Galicia", "Corsica", "Brittany", "Aragon", "Padania",
+    "BIG Kurdistan", "Abkhazia", "Sealand", "Zanzibar", "United Kingdom",
+}
+NAT_DROP_RE = re.compile(r"\s(?:A2|A'|military|League XI)$|-2$", re.I)
+
+
 def nationality(team):
     t = team.lower()
     if any(sk in t for sk in SENIOR_SKIP): return None
     m = NAT_RE.match(team.strip())
-    if m and m.group(1): return m.group(1).strip()
-    return None
+    if not (m and m.group(1)): return None
+    n = NAT_FIX.get(m.group(1).strip(), m.group(1).strip())
+    if n in NAT_DROP or NAT_DROP_RE.search(n): return None
+    return n
 
 # --- assemble -----------------------------------------------------------
 # Wikipedia article title is the preferred display name: it is the name people

@@ -226,3 +226,17 @@ export function teamColour(db, key, label = key, isCountry = false) {
   const c = db.clubColours && db.clubColours[key];
   return c || fallbackColour(label);
 }
+
+/* ---------------- World map ---------------- */
+
+// Loaded on demand rather than with the dataset: it is only wanted by one game,
+// and the service worker caches it on first use so the desert still works.
+let WORLD = null;
+export async function loadWorld() {
+  if (WORLD) return WORLD;
+  const r = await fetch('./data/world.json');
+  if (!r.ok) throw new Error('world map unavailable');
+  WORLD = await r.json();
+  WORLD.placed = new Set(Object.keys(WORLD.countries));
+  return WORLD;
+}

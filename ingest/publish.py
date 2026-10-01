@@ -61,6 +61,10 @@ def main():
     # re-downloads the whole 7MB when this string changes, so a code-only
     # release must leave it exactly where it was.
     version = f"1.{digest[:8]}"
+    # the map ships beside the dataset and is versioned with it
+    world = os.path.join(ROOT, "ingest", "out", "world.json")
+    if os.path.exists(world):
+        shutil.copyfile(world, os.path.join(ROOT, "app", "data", "world.json"))
     db["version"] = version
     with open(DST, "w") as f:
         json.dump(db, f, separators=(",", ":"))

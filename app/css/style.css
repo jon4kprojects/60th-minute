@@ -366,3 +366,38 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 /* Pass sits next to Hint on the 501 turn, so neither reads as the main action. */
 .row2{display:flex;gap:8px}
 .row2 .btn{flex:1;margin-top:10px}
+
+/* Country Conundrum. The map is the screen, so it gets the width and a dark
+   sea that lets unguessed land read as "not yet" rather than as wrong. */
+.ccclub{font-size:20px;font-weight:800;letter-spacing:-.3px;text-align:center;margin:2px 0 10px}
+.mapwrap{background:#0b0f16;border:1px solid var(--line);border-radius:14px;
+  padding:6px;margin-bottom:12px;overflow:hidden}
+.worldmap{display:block;width:100%;height:auto}
+.cci{fill:#161b24;stroke:none}
+.ccp{fill:#232c3a;stroke:#0b0f16;stroke-width:.6;cursor:pointer;
+  transition:fill .22s ease}
+.ccp:active{fill:#32405a}
+.ccp.found{fill:#1f9d55}
+.ccp.wrong{fill:#b0303f}
+.mapwrap.done .ccp{cursor:default}
+
+/* The card after a guess. It names who made the country count, which is the
+   part people actually enjoy - "oh, Yakubu". */
+.ccflash{margin-top:10px;padding:11px 14px;border-radius:12px;border:1px solid var(--line);
+  animation:ccpop .22s ease}
+.ccflash .c{font-size:15px;font-weight:800}
+.ccflash .p{font-size:13px;color:var(--muted);margin-top:2px}
+.ccflash.ok{background:rgba(31,157,85,.14);border-color:rgba(31,157,85,.45)}
+.ccflash.ok .c{color:#4ade80}
+.ccflash.no{background:rgba(176,48,63,.14);border-color:rgba(176,48,63,.45)}
+.ccflash.no .c{color:#f87171}
+@keyframes ccpop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.ccflash{animation:none}.ccp{transition:none}}
+/* Zoom controls, sat on the map rather than below it so the map keeps the room. */
+.mapwrap{position:relative;touch-action:none}
+.zb{position:absolute;right:10px;width:34px;height:34px;border-radius:9px;
+  background:rgba(12,16,23,.82);border:1px solid var(--line);color:var(--text);
+  font-size:19px;font-weight:700;line-height:1;cursor:pointer;backdrop-filter:blur(4px)}
+.zb{top:10px}
+.zb.out{top:52px}
+.zb:active{background:rgba(255,122,44,.22)}
