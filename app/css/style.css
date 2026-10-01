@@ -363,3 +363,6 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 /* A rule, not a team. Without this a black club - Juventus, Corinthians,
    Atletico Mineiro - is indistinguishable from an unfilled category tile. */
 .gh.trait{background:transparent;border-style:dashed;color:var(--muted)}
+/* Pass sits next to Hint on the 501 turn, so neither reads as the main action. */
+.row2{display:flex;gap:8px}
+.row2 .btn{flex:1;margin-top:10px}

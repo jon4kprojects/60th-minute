@@ -5,9 +5,23 @@
 // would hand the answer over. So input is free text and this has to be
 // forgiving about accents, partial names and phone-keyboard typos.
 
+// NFD takes the accent off a letter that has one - e becomes e, o becomes o -
+// but these are not accented letters, they are letters in their own right, and
+// decomposition leaves them untouched. They were then wiped by the a-z filter,
+// so Gudjohnsen normalised to "gu johnsen" and nobody could find him by typing
+// his name the way an English keyboard produces it.
+const LETTERS = {
+  '\u00f0': 'd', '\u00fe': 'th', '\u00f8': 'o', '\u0153': 'oe', '\u00e6': 'ae',
+  '\u00df': 'ss', '\u0142': 'l', '\u0111': 'd', '\u0127': 'h', '\u0167': 't',
+  '\u0131': 'i', '\u014b': 'n', '\u0138': 'k', '\u00f1': 'n',
+};
+
 const norm = (s) => s
-  .normalize('NFD').replace(/[̀-ͯ]/g, '')   // strip accents
-  .toLowerCase().replace(/[^a-z0-9 ]/g, ' ')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // strip accents
+  .toLowerCase()
+  .replace(/[\u00f0\u00fe\u00f8\u0153\u00e6\u00df\u0142\u0111\u0127\u0167\u0131\u014b\u0138\u00f1]/g,
+           (c) => LETTERS[c])
+  .replace(/[^a-z0-9 ]/g, ' ')
   .replace(/\s+/g, ' ').trim();
 
 export function buildNameIndex(players) {

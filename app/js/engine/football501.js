@@ -65,12 +65,53 @@ export const rosterOf = (db, clubName) =>
   new Set(db.players.filter(p =>
     (p.allClubs || p.clubs.map(c => c.club)).includes(clubName)).map(p => p.id));
 
-export function createGame({ club, metric, scope = 'all', names, checkoutLow = -10 }) {
+export const STARTS = [301, 401, 501];
+export const HINT_ALLOWANCES = [0, 3, 5];
+export const TURN_TIMES = [0, 30, 60];
+
+export function createGame({ club, metric, scope = 'all', names,
+                             start = 501, hints = 3, turnSeconds = 0 }) {
   return {
-    club, metric, scope, checkoutLow,
-    players: names.map(n => ({ name: n, score: 501, history: [] })),
+    club, metric, scope, start, turnSeconds,
+    players: names.map(n => ({ name: n, score: start, history: [], hints })),
     turn: 0, used: new Set(), finished: false, winner: null,
   };
+}
+
+/** Pass, or run out of time: the turn moves on and the score stays put. */
+export function passTurn(game, reason = 'pass') {
+  const me = game.players[game.turn];
+  me.history.push({ name: null, raw: 0, score: 0, status: reason });
+  game.turn = (game.turn + 1) % game.players.length;
+  return game;
+}
+
+/**
+ * Four eligible players to choose between, spent from a player's allowance.
+ *
+ * At least one is guaranteed not to bust you where such a player exists, so a
+ * hint is worth spending. Without that it could deal four names that all
+ * overshoot, which is not help, it is a worse version of guessing.
+ */
+export function hintOptions(db, game, rnd, n = 4) {
+  const me = game.players[game.turn];
+  const roster = [...rosterOf(db, game.club)]
+    .filter(id => !game.used.has(id))
+    .map(id => db.byId.get(id))
+    .filter(p => p && valueFor(p, game.club, game.metric, game.scope) > 0);
+  if (roster.length < n) return null;
+  const safe = roster.filter(p => valueFor(p, game.club, game.metric, game.scope) <= me.score);
+  const pick = [];
+  if (safe.length) pick.push(safe[Math.floor(rnd() * safe.length)]);
+  const rest = roster.filter(p => !pick.includes(p));
+  while (pick.length < n && rest.length) {
+    pick.push(...rest.splice(Math.floor(rnd() * rest.length), 1));
+  }
+  for (let i = pick.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [pick[i], pick[j]] = [pick[j], pick[i]];
+  }
+  return pick.map(p => ({ id: p.id, name: p.name }));
 }
 
 /**
@@ -114,8 +155,13 @@ export function scoreEntry(db, idx, game, rawName) {
   const cur = game.players[game.turn].score;
   const rem = cur - score;
 
-  if (rem < game.checkoutLow) return { status: 'bust', player: p, raw, score: 0 };
-  if (rem <= 0)               return { status: 'win',  player: p, raw, score, remaining: rem };
+  // Darts rules: you finish on nothing exactly, and overshooting scores you
+  // nothing at all. The slack that used to allow finishing anywhere down to
+  // -10 made a checkout a formality - there was almost always somebody who
+  // would do. Every low figure from 1 to 20 has players at a club of any size,
+  // so an exact finish is reachable, and a bust now costs the turn.
+  if (rem < 0)  return { status: 'bust', player: p, raw, score: 0, back: cur };
+  if (rem === 0) return { status: 'win',  player: p, raw, score, remaining: 0 };
   return { status: 'ok', player: p, raw, score, remaining: rem };
 }
 
@@ -141,7 +187,9 @@ export const explain = (r, metricLabel) => ({
   duplicate:  `${r.player?.name} has already been named this round`,
   ineligible: `${r.player?.name} never played for this club`,
   'no-data':  `No ${metricLabel} recorded for ${r.player?.name} here`,
-  bust:       `${r.player?.name} — ${r.raw}. Too many, you bust`,
+  bust:       `${r.player?.name} \u2014 ${r.raw}. Too many: bust, back to ${r.back}`,
+  pass:       'Passed',
+  timeout:    'Out of time',
   ok:         r.raw === 0 ? `${r.player?.name} — none. Nothing off`
                           : `${r.player?.name} — ${r.raw} ${metricLabel}`,
   win:        `${r.player?.name} — ${r.raw}. Checked out!`,

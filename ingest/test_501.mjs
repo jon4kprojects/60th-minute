@@ -67,5 +67,51 @@ for (const c of ['Chelsea F.C.','Arsenal F.C.','Celtic F.C.','Liverpool F.C.']) 
   const usable = r.filter(p => { const v=F.valueFor(p,c,'apps'); return v>0 && v<=180; });
   console.log(`  ${c.padEnd(24)} ${String(r.length).padStart(3)} players, ${String(usable.length).padStart(3)} score under 180`);
 }
+
+console.log('=== bust, pass, hints, start value ===');
+{
+  const clubs = F.clubsWithDepth(db, 15);
+  const club = clubs.find(c => c.name === 'Arsenal F.C.') || clubs[0];
+  const g = F.createGame({ club: club.name, metric: 'goals', scope: 'all',
+                           names: ['A', 'B'], start: 301, hints: 3, turnSeconds: 30 });
+  ok(g.players[0].score === 301, 'a game can start from 301');
+  ok(g.players.every(p => p.hints === 3), 'each player gets their own hint allowance');
+
+  // overshoot: the score must come back to exactly where the turn began
+  g.players[0].score = 5;
+  const roster = [...F.rosterOf(db, club.name)].map(id => db.byId.get(id));
+  const big = roster.find(p => F.valueFor(p, club.name, 'goals', 'all') > 50);
+  const bust = F.scoreEntry(db, idx, g, big.name);
+  ok(bust.status === 'bust', `overshooting busts (${big.name})`);
+  ok(bust.back === 5, 'the result carries the score to revert to');
+  F.applyTurn(g, bust);
+  ok(g.players[0].score === 5, 'a bust leaves the score untouched');
+  ok(g.turn === 1, 'and the turn passes');
+
+  // exact finish only
+  g.turn = 0;
+  const exact = roster.find(p => !g.used.has(p.id) && F.valueFor(p, club.name, 'goals', 'all') === 5);
+  if (exact) {
+    const w = F.scoreEntry(db, idx, g, exact.name);
+    ok(w.status === 'win', `landing exactly on nothing wins (${exact.name})`);
+  } else {
+    ok(false, 'expected somebody on exactly 5 goals for a club this size');
+  }
+
+  const g2 = F.createGame({ club: club.name, metric: 'goals', scope: 'all', names: ['A', 'B'] });
+  const before = g2.players[0].score;
+  F.passTurn(g2);
+  ok(g2.players[0].score === before && g2.turn === 1, 'a pass costs the turn, not the score');
+
+  const opts = F.hintOptions(db, g2, Math.random);
+  ok(opts && opts.length === 4, 'a hint deals four eligible players');
+  ok(opts.every(o => F.rosterOf(db, club.name).has(o.id)), 'all four played for the club');
+  g2.players[1].score = 3;
+  g2.turn = 1;
+  const safe = F.hintOptions(db, g2, Math.random)
+    .some(o => F.valueFor(db.byId.get(o.id), club.name, 'goals', 'all') <= 3);
+  ok(safe, 'at least one of the four will not bust you');
+}
+
 console.log(fail ? `\nFAIL (${fail})` : '\nPASS');
 process.exit(fail?1:0);

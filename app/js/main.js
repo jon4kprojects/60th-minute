@@ -7,7 +7,7 @@ import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 
-const BUILD = 'b60.5659d0c';
+const BUILD = 'b63.5e685da';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -275,6 +275,7 @@ function setup501() {
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
   let clubs = clubList();
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
+  let start = 501, hints = 3, turnSeconds = 0;
 
   // Every control redraws the whole panel, so typed names must survive it.
   // Without this, changing the metric or player count silently wiped them.
@@ -298,8 +299,9 @@ function setup501() {
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
       <div class="kicker">Football 501</div>
       <h1 style="font-size:30px">Set up the <em>oche</em></h1>
-      <div class="tag">Everyone starts on 501. Name players who turned out for the club —
-        their number comes off your score. Go below zero and you bust.</div>
+      <div class="tag">Everyone starts on ${start}. Name players who turned out for the club —
+        their number comes off your score. Land on nothing exactly to win; overshoot
+        and you bust, and your score goes back where it was.</div>
 
       ${eraRow('f501')}
       <label>Club</label>
@@ -325,6 +327,21 @@ function setup501() {
           : 'All competitions — league, cups and Europe.'}<br>
         <span>${scope === 'league' ? 'Wikipedia player infoboxes' : 'Wikipedia club player lists'} (CC BY-SA)</span>
       </div>
+
+      <label>Start from</label>
+      <div class="chips" id="start">${F501.STARTS.map(v =>
+        `<button class="chip ${v === start ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}</div>
+
+      <label>Hints each</label>
+      <div class="chips" id="hints">${F501.HINT_ALLOWANCES.map(v =>
+        `<button class="chip ${v === hints ? 'on' : ''}" data-v="${v}">${v || 'None'}</button>`).join('')}</div>
+
+      <label>Turn clock</label>
+      <div class="chips" id="clock">${F501.TURN_TIMES.map(v =>
+        `<button class="chip ${v === turnSeconds ? 'on' : ''}" data-v="${v}">${v ? v + 's' : 'Off'}</button>`).join('')}</div>
+      <div class="tag" style="margin:6px 2px 14px">${turnSeconds
+        ? `Run out of time and the turn passes \u2014 your score stays where it is.`
+        : 'No clock. Take as long as you like.'}</div>
 
       <label>Players</label>
       <div class="chips" id="np">${[2,3,4].map(i =>
@@ -370,13 +387,47 @@ function setup501() {
     });
     app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; redraw(); });
     app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => { n = +c.dataset.n; redraw(); });
+    app.querySelectorAll('#start .chip').forEach(c => c.onclick = () => { start = +c.dataset.v; redraw(); });
+    app.querySelectorAll('#hints .chip').forEach(c => c.onclick = () => { hints = +c.dataset.v; redraw(); });
+    app.querySelectorAll('#clock .chip').forEach(c => c.onclick = () => { turnSeconds = +c.dataset.v; redraw(); });
     document.getElementById('go').onclick = () => {
       const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);
-      G = F501.createGame({ club, metric, scope, names });
+      G = F501.createGame({ club, metric, scope, names, start, hints, turnSeconds });
+      reset501Clock();
       play501();
     };
   };
   draw();
+}
+
+let F5DEADLINE = 0, F5CLOCK = null, F5HINT = null;
+
+/** A fresh clock for whoever is up, whether the last turn scored or busted. */
+function reset501Clock() {
+  F5DEADLINE = Date.now() + (G && G.turnSeconds ? G.turnSeconds * 1000 : 0);
+}
+
+// One interval, and it stops itself once the bar leaves the DOM, so leaving
+// the screen needs no teardown anywhere else.
+function run501Clock() {
+  clearInterval(F5CLOCK); F5CLOCK = null;
+  if (!G || !G.turnSeconds) return;
+  const tick = () => {
+    const bar = document.getElementById('f5fill'), num = document.getElementById('f5num');
+    if (!bar || !num || !G || G.finished) { clearInterval(F5CLOCK); F5CLOCK = null; return; }
+    const left = Math.max(0, F5DEADLINE - Date.now());
+    num.textContent = Math.ceil(left / 1000);
+    bar.style.width = (left / (G.turnSeconds * 1000) * 100) + '%';
+    bar.parentElement.classList.toggle('low', left <= 10000);
+    if (left <= 0) {
+      clearInterval(F5CLOCK); F5CLOCK = null;
+      F501.passTurn(G, 'timeout');
+      F5HINT = null; reset501Clock();
+      play501('Out of time \u2014 turn passed', 'no');
+    }
+  };
+  tick();
+  F5CLOCK = setInterval(tick, 200);
 }
 
 function play501(msg = null, tone = '') {
@@ -399,11 +450,20 @@ function play501(msg = null, tone = '') {
       <button class="btn" id="again">Play again</button>
       <button class="btn ghost" id="home2">Home</button>`
     : `
+      ${G.turnSeconds ? `<div class="clock"><div class="fill" id="f5fill"></div>
+        <span class="num" id="f5num">${G.turnSeconds}</span></div>` : ''}
       <div class="turnline"><b>${esc(G.players[G.turn].name)}</b> to throw — name ${/^[aeiou]/i.test(shortClub(G.club)) ? 'an' : 'a'} ${esc(shortClub(G.club))} player</div>
-      <div class="entry"><input id="guess" placeholder="Player name" autocomplete="off"
-        autocapitalize="words" autocorrect="off" spellcheck="false"
-        ><button class="btn" id="submit">Score</button></div>
-      <div class="sugg" id="sugg" hidden></div>
+      ${F5HINT ? `<div class="opts">${F5HINT.map(o =>
+          `<button class="opt" data-hid="${esc(o.id)}">${esc(o.name)}</button>`).join('')}</div>`
+        : `<div class="entry"><input id="guess" placeholder="Player name" autocomplete="off"
+             autocapitalize="words" autocorrect="off" spellcheck="false"
+             ><button class="btn" id="submit">Score</button></div>
+           <div class="sugg" id="sugg" hidden></div>`}
+      <div class="row2">
+        ${!F5HINT && G.players[G.turn].hints > 0
+          ? `<button class="btn ghost" id="hint">Hint (${G.players[G.turn].hints} left)</button>` : ''}
+        <button class="btn ghost" id="pass">Pass</button>
+      </div>
       ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}`}
     <ul class="log">${G.players.flatMap(p => p.history.map((h, i) => ({ p, h, i })))
       .sort((a, b) => b.i - a.i).slice(0, 12).map(({ p, h }) =>
@@ -413,6 +473,36 @@ function play501(msg = null, tone = '') {
   document.getElementById('back').onclick = home;
   const again = document.getElementById('again'); if (again) again.onclick = setup501;
   const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
+
+  const commit = (r) => {
+    const t = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
+    F501.applyTurn(G, r);
+    F5HINT = null; reset501Clock();
+    play501(F501.explain(r, F501.METRICS[G.metric].inline), t);
+  };
+
+  const pass = document.getElementById('pass');
+  if (pass) pass.onclick = () => {
+    F501.passTurn(G);
+    F5HINT = null; reset501Clock();
+    play501(`${G.players[(G.turn - 1 + G.players.length) % G.players.length].name} passed`, 'no');
+  };
+
+  const hint = document.getElementById('hint');
+  if (hint) hint.onclick = () => {
+    const opts = F501.hintOptions(VIEW, G, Math.random);
+    if (!opts) return;
+    G.players[G.turn].hints--;
+    F5HINT = opts;
+    play501('Four who played for them \u2014 one of them will not bust you', '');
+  };
+  // A hint is spent, so picking from it scores exactly as typing would.
+  app.querySelectorAll('.opt[data-hid]').forEach(b => b.onclick = () => {
+    const p = VIEW.byId.get(b.dataset.hid);
+    commit(F501.scoreEntry(VIEW, VNAMES, G, p.name));
+  });
+
+  run501Clock();
   const inp = document.getElementById('guess'), sub = document.getElementById('submit');
   if (inp) {
     const box = document.getElementById('sugg');
@@ -452,10 +542,7 @@ function play501(msg = null, tone = '') {
 
     const go = () => {
       const v = inp.value.trim(); if (!v) return;
-      const r = F501.scoreEntry(VIEW, VNAMES, G, v);
-      const tone = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
-      F501.applyTurn(G, r);
-      play501(F501.explain(r, F501.METRICS[G.metric].inline), tone);
+      commit(F501.scoreEntry(VIEW, VNAMES, G, v));
     };
     sub.onclick = go;
     inp.focus();
@@ -478,6 +565,21 @@ function setupChain() {
         another team they played for \u2014 that team is next. Clubs and countries both
         count. Nothing twice, 60 seconds a turn, three lives each.</div>
       ${eraRow('chain')}
+      <label>Start from</label>
+      <div class="chips" id="start">${F501.STARTS.map(v =>
+        `<button class="chip ${v === start ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}</div>
+
+      <label>Hints each</label>
+      <div class="chips" id="hints">${F501.HINT_ALLOWANCES.map(v =>
+        `<button class="chip ${v === hints ? 'on' : ''}" data-v="${v}">${v || 'None'}</button>`).join('')}</div>
+
+      <label>Turn clock</label>
+      <div class="chips" id="clock">${F501.TURN_TIMES.map(v =>
+        `<button class="chip ${v === turnSeconds ? 'on' : ''}" data-v="${v}">${v ? v + 's' : 'Off'}</button>`).join('')}</div>
+      <div class="tag" style="margin:6px 2px 14px">${turnSeconds
+        ? `Run out of time and the turn passes \u2014 your score stays where it is.`
+        : 'No clock. Take as long as you like.'}</div>
+
       <label>Players</label>
       <div class="chips" id="np">${[2,3,4].map(i =>
         `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
