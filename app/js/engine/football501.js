@@ -30,6 +30,28 @@ export const SCOPES = {
 export const statKey = (metric, scope) =>
   scope === 'league' ? 'lg' + metric[0].toUpperCase() + metric.slice(1) : metric;
 
+/**
+ * National sides playable here, and how deep each is.
+ *
+ * The international game scores caps and international goals, which Wikidata
+ * records per national team rather than per career - Cahill's Australia figures
+ * are separate from his two Samoa caps, and a Germany leg should not be scored
+ * on either. A side needs enough players carrying figures to be worth a leg.
+ */
+export function teamsWithDepth(db, min = 25) {
+  const out = [];
+  for (const [team, ids] of db.byNation) {
+    let n = 0;
+    for (const id of ids) {
+      const t = db.byId.get(id);
+      const nt = t && t.nationalTotals && t.nationalTotals[team];
+      if (nt && (nt.caps || nt.goals)) n++;
+    }
+    if (n >= min) out.push({ name: team, country: team, n, kind: 'country' });
+  }
+  return out.sort((a, b) => b.n - a.n);
+}
+
 /** Does this club have league figures? */
 export const hasLeagueSplit = (db, clubName) =>
   db.leagueScopeClubs ? db.leagueScopeClubs.has(clubName) : false;
@@ -61,18 +83,20 @@ export function clubsWithDepth(db, min = 15) {
 
 // Eligibility is "did he ever turn out for them", so it reads allClubs - a
 // 12-game spell still counts.
-export const rosterOf = (db, clubName) =>
-  new Set(db.players.filter(p =>
-    (p.allClubs || p.clubs.map(c => c.club)).includes(clubName)).map(p => p.id));
+export const rosterOf = (db, name, kind = 'club') => {
+  if (kind === 'country') return db.byNation.get(name) || new Set();
+  return new Set(db.players.filter(p =>
+    (p.allClubs || p.clubs.map(c => c.club)).includes(name)).map(p => p.id));
+};
 
 export const STARTS = [301, 401, 501];
 export const HINT_ALLOWANCES = [0, 3, 5];
 export const TURN_TIMES = [0, 30, 60];
 
-export function createGame({ club, metric, scope = 'all', names,
+export function createGame({ club, kind = 'club', metric, scope = 'all', names,
                              start = 501, hints = 3, turnSeconds = 0 }) {
   return {
-    club, metric, scope, start, turnSeconds,
+    club, kind, metric, scope, start, turnSeconds,
     players: names.map(n => ({ name: n, score: start, history: [], hints })),
     turn: 0, used: new Set(), finished: false, winner: null,
   };
@@ -95,12 +119,13 @@ export function passTurn(game, reason = 'pass') {
  */
 export function hintOptions(db, game, rnd, n = 4) {
   const me = game.players[game.turn];
-  const roster = [...rosterOf(db, game.club)]
+  const roster = [...rosterOf(db, game.club, game.kind)]
     .filter(id => !game.used.has(id))
     .map(id => db.byId.get(id))
-    .filter(p => p && valueFor(p, game.club, game.metric, game.scope) > 0);
+    .filter(p => p && valueFor(p, game.club, game.metric, game.scope, game.kind) > 0);
   if (roster.length < n) return null;
-  const safe = roster.filter(p => valueFor(p, game.club, game.metric, game.scope) <= me.score);
+  const safe = roster.filter(p =>
+    valueFor(p, game.club, game.metric, game.scope, game.kind) <= me.score);
   const pick = [];
   if (safe.length) pick.push(safe[Math.floor(rnd() * safe.length)]);
   const rest = roster.filter(p => !pick.includes(p));
@@ -122,7 +147,14 @@ export function hintOptions(db, game, rnd, n = 4) {
  * summing a verified total across two spells made Drogba read 328 Chelsea
  * goals instead of 164.
  */
-export const valueFor = (player, clubName, metric, scope = 'all') => {
+export const valueFor = (player, clubName, metric, scope = 'all', kind = 'club') => {
+  // A national side keeps its own figures. There is no league/cup split to an
+  // international career, so scope does not apply.
+  if (kind === 'country') {
+    const n = player.nationalTotals && player.nationalTotals[clubName];
+    if (!n) return 0;
+    return (metric === 'goals' ? n.goals : n.caps) || 0;
+  }
   const t = player.clubTotals && player.clubTotals[clubName];
   if (t) {
     const k = statKey(metric, scope);
@@ -138,17 +170,19 @@ export const valueFor = (player, clubName, metric, scope = 'all') => {
  * happened; it never mutates. `applyTurn` commits it.
  */
 export function scoreEntry(db, idx, game, rawName) {
-  const roster = rosterOf(db, game.club);
+  const roster = rosterOf(db, game.club, game.kind);
   const p = lookup(idx, rawName, roster);
   if (!p) return { status: 'unknown', score: 0 };
   if (game.used.has(p.id)) return { status: 'duplicate', player: p, score: 0 };
   if (!roster.has(p.id)) return { status: 'ineligible', player: p, score: 0 };
 
-  const raw = valueFor(p, game.club, game.metric, game.scope);
+  const raw = valueFor(p, game.club, game.metric, game.scope, game.kind);
   // A genuine zero is a legitimate turn, not missing data: Mascherano really
   // did score none for West Ham. Only treat it as missing if we hold nothing
   // for that club at all.
-  const held = p.clubTotals && p.clubTotals[game.club];
+  const held = game.kind === 'country'
+    ? (p.nationalTotals && p.nationalTotals[game.club])
+    : (p.clubTotals && p.clubTotals[game.club]);
   if (raw === 0 && !held) return { status: 'no-data', player: p, score: 0, raw: 0 };
 
   const score = raw;
@@ -185,7 +219,7 @@ export function applyTurn(game, result) {
 export const explain = (r, metricLabel) => ({
   unknown:    'No player by that name found',
   duplicate:  `${r.player?.name} has already been named this round`,
-  ineligible: `${r.player?.name} never played for this club`,
+  ineligible: `${r.player?.name} never played for them`,
   'no-data':  `No ${metricLabel} recorded for ${r.player?.name} here`,
   bust:       `${r.player?.name} \u2014 ${r.raw}. Too many: bust, back to ${r.back}`,
   pass:       'Passed',

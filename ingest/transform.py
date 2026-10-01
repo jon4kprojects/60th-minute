@@ -92,10 +92,23 @@ for b in load("bio"):
     if V(b, "posName"): r["pos"].add(V(b, "posName"))
     if V(b, "citName"): r["cit"].add(V(b, "citName"))
 
+# Caps and international goals per country. Wikidata often carries several
+# statements for one spell with a national side, so the largest figure wins
+# rather than the sum - adding them double-counts exactly as it did for clubs.
 nat = collections.defaultdict(list)
+natgoals = collections.defaultdict(dict)
 for b in load("national"):
     n = nationality(V(b, "teamName") or "")
-    if n: nat[QID(V(b, "p"))].append((num(V(b, "caps")) or 0, n))
+    if not n:
+        continue
+    pid = QID(V(b, "p"))
+    caps, goals = num(V(b, "caps")) or 0, num(V(b, "intGoals"))
+    nat[pid].append((caps, n))
+    cur = natgoals[pid].get(n, {"caps": 0, "goals": None})
+    cur["caps"] = max(cur["caps"], caps)
+    if goals is not None:
+        cur["goals"] = goals if cur["goals"] is None else max(cur["goals"], goals)
+    natgoals[pid][n] = cur
 
 suspect_apps = 0
 had_apps_stmt = set()   # players Wikidata records SOME appearance figure for
@@ -237,6 +250,10 @@ for pid, p in players.items():
         # them, and a player can switch allegiance (Cahill: Samoa, Australia)
         "countries": countries,
         "caps": natl[0][0] if natl and natl[0][0] else None,
+        # per-country caps and goals, so the international 501 can score a
+        # Germany leg on Germany figures rather than a career total
+        "nationalTotals": {k: v for k, v in natgoals.get(pid, {}).items()
+                           if v["caps"] or v["goals"]},
         "noStats": no_stats,
         "careerApps": None if no_stats else career_apps,
         "careerGoals": None if no_stats else sum(s["goals"] or 0 for s in raw),

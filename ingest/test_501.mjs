@@ -113,5 +113,40 @@ console.log('=== bust, pass, hints, start value ===');
   ok(safe, 'at least one of the four will not bust you');
 }
 
+
+console.log('=== the international game ===');
+{
+  const teams = F.teamsWithDepth(db, 25);
+  ok(teams.length > 30, `${teams.length} national sides deep enough to play`);
+  ok(teams.some(t => t.name === 'England') && teams.some(t => t.name === 'Germany'),
+     'England and Germany are among them');
+  ok(!teams.some(t => /national|under-|olympic/i.test(t.name)),
+     'they are named as countries, not as "X national football team"');
+
+  const g = F.createGame({ club: 'England', kind: 'country', metric: 'goals',
+                           names: ['A', 'B'], start: 501 });
+  const kane = F.scoreEntry(db, idx, g, 'Harry Kane');
+  ok(kane.status === 'ok' && kane.raw === 85, `Kane scores his England goals (${kane.raw})`);
+
+  // A club career must not leak into an international leg, and the other way round
+  const messi = F.scoreEntry(db, idx, g, 'Lionel Messi');
+  ok(messi.status === 'ineligible', 'an Argentina player is ineligible for England');
+  const cahill = db.players.find(p => p.name === 'Tim Cahill');
+  ok(F.valueFor(cahill, 'Australia', 'apps', 'all', 'country') === 108 &&
+     F.valueFor(cahill, 'Samoa', 'apps', 'all', 'country') === 2,
+     'caps are counted per country, not per career');
+
+  // a keeper with no international goals is a real zero, not missing data
+  const shilton = F.scoreEntry(db, idx, g, 'Peter Shilton');
+  ok(shilton.status === 'ok' && shilton.raw === 0, 'a goalkeeper scores a genuine nothing');
+
+  const caps = F.createGame({ club: 'Germany', kind: 'country', metric: 'apps',
+                              names: ['A', 'B'], start: 501 });
+  const muller = F.scoreEntry(db, idx, caps, 'Thomas Müller');
+  ok(muller.status === 'ok' && muller.raw === 131, `caps score for Germany (${muller.raw})`);
+  ok(F.scoreEntry(db, idx, caps, 'Thomas Muller').raw === 131,
+     'and the name resolves without the umlaut');
+}
+
 console.log(fail ? `\nFAIL (${fail})` : '\nPASS');
 process.exit(fail?1:0);

@@ -7,7 +7,7 @@ import * as PFB from './engine/playedForBoth.js';
 import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 
-const BUILD = 'b63.5e685da';
+const BUILD = 'b65.65f3f28';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -271,11 +271,17 @@ function setup501() {
   refreshView('f501');
   // Which clubs have enough depth to score a leg depends on the era, so the
   // list is rebuilt whenever it changes rather than captured once.
-  const clubList = () => F501.clubsWithDepth(VIEW, 15).slice()
+  let kind = 'club';
+  const clubList = () => (kind === 'country'
+      ? F501.teamsWithDepth(VIEW, 25)
+      : F501.clubsWithDepth(VIEW, 15)).slice()
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
   let clubs = clubList();
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
   let start = 501, hints = 3, turnSeconds = 0;
+  // Appearances for a club are caps for a country, and nobody calls them
+  // appearances when the shirt is England's.
+  const metricLabel = (k) => (kind === 'country' && k === 'apps') ? 'Caps' : F501.METRICS[k].label;
 
   // Every control redraws the whole panel, so typed names must survive it.
   // Without this, changing the metric or player count silently wiped them.
@@ -286,8 +292,10 @@ function setup501() {
   };
 
   const draw = () => {
-    const hasLg  = club ? F501.hasLeagueSplit(VIEW, club) : false;
-    const hasAll = club ? F501.hasAllComps(VIEW, club) : true;
+    // An international career has no league and cup to tell apart, so the
+    // scope control is not shown and the figures are simply caps and goals.
+    const hasLg  = kind === 'country' ? false : (club ? F501.hasLeagueSplit(VIEW, club) : false);
+    const hasAll = kind === 'country' ? true  : (club ? F501.hasAllComps(VIEW, club) : true);
     // A club without cross-checked all-competition figures plays on league
     // figures; one without league figures plays on all-competitions.
     if (!hasLg) scope = 'all';
@@ -299,21 +307,33 @@ function setup501() {
       <div class="bar"><button class="back" id="back">‹ Back</button></div>
       <div class="kicker">Football 501</div>
       <h1 style="font-size:30px">Set up the <em>oche</em></h1>
-      <div class="tag">Everyone starts on ${start}. Name players who turned out for the club —
-        their number comes off your score. Land on nothing exactly to win; overshoot
-        and you bust, and your score goes back where it was.</div>
+      <div class="tag">Everyone starts on ${start}. Name players who turned out for
+        ${kind === 'country' ? 'the country' : 'the club'} — their number comes off your
+        score. Land on nothing exactly to win; overshoot and you bust, and your score
+        goes back where it was.</div>
 
       ${eraRow('f501')}
-      <label>Club</label>
-      <input id="clubq" placeholder="Type a club" value="${esc(filter)}"
+      <label>Play with</label>
+      <div class="chips" id="kind">
+        <button class="chip ${kind === 'club' ? 'on' : ''}" data-k="club">Clubs</button>
+        <button class="chip ${kind === 'country' ? 'on' : ''}" data-k="country">Countries</button>
+      </div>
+
+      <label>${kind === 'country' ? 'Country' : 'Club'}</label>
+      <input id="clubq" placeholder="Type a ${kind === 'country' ? 'country' : 'club'}" value="${esc(filter)}"
         autocomplete="off" autocorrect="off" spellcheck="false">
       <div class="sugg" id="clublist" hidden></div>
       ${club && !filter ? `<div class="chosen">${esc(shortClub(club))}<button class="x" id="clear">change</button></div>` : ''}
 
       <label>Score by</label>
-      <div class="chips" id="metric">${Object.entries(F501.METRICS).map(([k, m]) =>
-        `<button class="chip ${k === metric ? 'on' : ''}" data-m="${k}">${m.label}</button>`).join('')}</div>
+      <div class="chips" id="metric">${Object.keys(F501.METRICS).map(k =>
+        `<button class="chip ${k === metric ? 'on' : ''}" data-m="${k}">${esc(metricLabel(k))}</button>`).join('')}</div>
 
+      ${kind === 'country' ? `
+      <div class="scopenote" style="margin-top:12px">
+        Caps and international goals for that country only.<br>
+        <span>Wikidata (CC0)</span>
+      </div>` : `
       <label>Competitions</label>
       <div class="chips" id="scope">
         <button class="chip ${scope === 'all' ? 'on' : ''} ${hasAll ? '' : 'off'}"
@@ -326,7 +346,7 @@ function setup501() {
           ? 'League appearances and goals only — no cups, no Europe.'
           : 'All competitions — league, cups and Europe.'}<br>
         <span>${scope === 'league' ? 'Wikipedia player infoboxes' : 'Wikipedia club player lists'} (CC BY-SA)</span>
-      </div>
+      </div>`}
 
       <label>Start from</label>
       <div class="chips" id="start">${F501.STARTS.map(v =>
@@ -348,7 +368,7 @@ function setup501() {
         `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
       <div id="names">${Array.from({length: n}, (_, i) =>
         `<input class="nm" placeholder="Player ${i+1}" style="margin-top:8px">`).join('')}</div>
-      <button class="btn" id="go" ${club ? '' : 'disabled'}>${club ? 'Start' : 'Choose a club'}</button></div>`));
+      <button class="btn" id="go" ${club ? '' : 'disabled'}>${club ? 'Start' : (kind === 'country' ? 'Choose a country' : 'Choose a club')}</button></div>`));
 
     document.getElementById('back').onclick = home;
     // A club that had depth under one era may not under another, so the choice
@@ -387,12 +407,17 @@ function setup501() {
     });
     app.querySelectorAll('#metric .chip').forEach(c => c.onclick = () => { metric = c.dataset.m; redraw(); });
     app.querySelectorAll('#np .chip').forEach(c => c.onclick = () => { n = +c.dataset.n; redraw(); });
+    app.querySelectorAll('#kind .chip').forEach(c => c.onclick = () => {
+      // Clubs and countries are different lists entirely, so the chosen subject
+      // and the typed filter both go with the old one.
+      kind = c.dataset.k; clubs = clubList(); club = null; filter = ''; scope = 'all'; redraw();
+    });
     app.querySelectorAll('#start .chip').forEach(c => c.onclick = () => { start = +c.dataset.v; redraw(); });
     app.querySelectorAll('#hints .chip').forEach(c => c.onclick = () => { hints = +c.dataset.v; redraw(); });
     app.querySelectorAll('#clock .chip').forEach(c => c.onclick = () => { turnSeconds = +c.dataset.v; redraw(); });
     document.getElementById('go').onclick = () => {
       const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);
-      G = F501.createGame({ club, metric, scope, names, start, hints, turnSeconds });
+      G = F501.createGame({ club, kind, metric, scope, names, start, hints, turnSeconds });
       reset501Clock();
       play501();
     };
@@ -431,13 +456,18 @@ function run501Clock() {
 }
 
 function play501(msg = null, tone = '') {
+  const intl = G.kind === 'country';
   const m = F501.METRICS[G.metric];
+  // "Appearances" is what a club gives you; a country gives you caps.
+  const mLabel = intl && G.metric === 'apps' ? 'Caps' : m.label;
+  const mInline = intl && G.metric === 'apps' ? 'caps' : m.inline;
   beginPaint('play501');
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button>
-      <span>${esc(shortClub(G.club))} · ${m.label} · ${esc(F501.SCOPES[G.scope||'all'].label)}</span></div>
-    ${DB.statScope ? `<div class="scopeline">${esc(DB.statScope)}</div>` : ''}
+      <span>${esc(shortClub(G.club))} · ${esc(mLabel)}${intl ? '' : ' · ' + esc(F501.SCOPES[G.scope||'all'].label)}</span></div>
+    ${intl ? '<div class="scopeline">For that country only</div>'
+           : (DB.statScope ? `<div class="scopeline">${esc(DB.statScope)}</div>` : '')}
     <div class="board">${G.players.map((p, i) => {
       const last = p.history[p.history.length - 1];
       return `<div class="seat ${i === G.turn && !G.finished ? 'active' : ''}">
@@ -478,7 +508,7 @@ function play501(msg = null, tone = '') {
     const t = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
     F501.applyTurn(G, r);
     F5HINT = null; reset501Clock();
-    play501(F501.explain(r, F501.METRICS[G.metric].inline), t);
+    play501(F501.explain(r, mInline), t);
   };
 
   const pass = document.getElementById('pass');
