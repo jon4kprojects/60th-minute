@@ -49,6 +49,13 @@ for club, roster in stats.items():
     print(f"  {club[:30]:30s} wikipedia {len(roster):4d} players, matched {hits:3d} of ours")
 
 data["verifiedClubs"] = sorted(v["club"] for v in verified)
+# Clubs whose scraped goals failed the record-scorer check. Their appearances
+# are good and published; their goals are not, so the goals metric falls back to
+# league figures and the scope control must stop claiming all-competitions.
+data["goalsWithheldClubs"] = sorted(
+    {c for c in data["verifiedClubs"]
+     for p in players
+     if (p.get("clubTotals") or {}).get(c, {}).get("goals", 0) is None})
 lg = sum(1 for p in players for t in (p.get("clubTotals") or {}).values() if "lgApps" in t or "lgGoals" in t)
 data["statScope"] = "Competitive appearances and goals for the club"
 data["leagueSplits"] = lg

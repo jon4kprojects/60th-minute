@@ -1,5 +1,7 @@
 ingest/raw/
 ingest/out/raw_*.json
+# working copies of a previous extract, kept on disk while rebuilding
+ingest/out.bak-*/
 __pycache__/
 .DS_Store
 /tmp/

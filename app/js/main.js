@@ -8,7 +8,7 @@ import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 import * as CC from './engine/countryConundrum.js';
 
-const BUILD = 'b74.31e1485';
+const BUILD = 'b76.eb57626';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -302,7 +302,7 @@ function setup501() {
     // scored on league figures taken from player infoboxes, so that is what the
     // control has to say: Real Madrid showing "All competitions" over numbers
     // that are league-only is the kind of claim a purist checks and we lose.
-    const hasAll = kind === 'country' ? true : (club ? F501.hasAllComps(VIEW, club) : true);
+    const hasAll = kind === 'country' ? true : (club ? F501.hasAllComps(VIEW, club, metric) : true);
     const hasLg  = kind === 'country' ? false
       : (club ? (!hasAll || F501.hasLeagueSplit(VIEW, club)) : false);
     if (!hasAll) scope = 'league';
@@ -494,6 +494,8 @@ function play501(msg = null, tone = '') {
   // "Appearances" is what a club gives you; a country gives you caps.
   const mLabel = intl && G.metric === 'apps' ? 'Caps' : m.label;
   const mInline = intl && G.metric === 'apps' ? 'caps' : m.inline;
+  const scoped = intl ? mInline
+    : `${mInline} (${G.scope === 'league' ? 'league only' : 'all competitions'})`;
   beginPaint('play501');
   app.innerHTML = '';
   app.append(el(`<div>
@@ -575,7 +577,7 @@ function play501(msg = null, tone = '') {
     const t = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
     F501.applyTurn(G, r);
     F5HINT = null; F5LIST = null; reset501Clock();
-    play501(F501.explain(r, mInline), t);
+    play501(F501.explain(r, scoped), t);
   };
 
   // Two taps. A mis-tap that ended somebody else's leg would be unforgivable

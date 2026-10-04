@@ -88,6 +88,7 @@ export async function loadData() {
   DB.topFiveClubs = new Set(raw.topFiveClubs || []);
   DB.clubCountry = raw.clubCountry || {};
   DB.clubColours = raw.clubColours || {};
+  DB.goalsWithheldClubs = new Set(raw.goalsWithheldClubs || []);
   return DB;
 }
 

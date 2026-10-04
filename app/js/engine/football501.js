@@ -61,9 +61,17 @@ export function teamsWithDepth(db, min = 25) {
 export const hasLeagueSplit = (db, clubName) =>
   db.leagueScopeClubs ? db.leagueScopeClubs.has(clubName) : false;
 
-/** Does this club have cross-checked all-competition figures? */
-export const hasAllComps = (db, clubName) =>
-  db.verifiedClubs ? db.verifiedClubs.has(clubName) : false;
+/**
+ * Does this club have cross-checked all-competition figures for this metric?
+ * Goals and appearances are verified separately, because a club can reproduce
+ * its record holder's appearances while its goals column parses to nothing.
+ */
+export const hasAllComps = (db, clubName, metric = 'apps') => {
+  if (!db.verifiedClubs || !db.verifiedClubs.has(clubName)) return false;
+  if (metric === 'goals' && db.goalsWithheldClubs && db.goalsWithheldClubs.has(clubName))
+    return false;
+  return true;
+};
 
 /**
  * Clubs playable here, on figures we can defend.
@@ -273,9 +281,13 @@ export const valueFor = (player, clubName, metric, scope = 'all', kind = 'club')
   }
   const t = player.clubTotals && player.clubTotals[clubName];
   if (t) {
+    // Order of preference: the figure asked for, then the other scope, then the
+    // spell sum. A withheld figure is stored as null, and treating null as nought
+    // published Denis Law as having never scored for Manchester City.
     const k = statKey(metric, scope);
+    const other = statKey(metric, scope === 'league' ? 'all' : 'league');
     if (t[k] != null) return t[k];
-    return t[metric] || 0;                       // fall back to all-competitions
+    if (t[other] != null) return t[other];
   }
   return player.clubs.filter(c => c.club === clubName)
                      .reduce((a, c) => a + (c[metric] || 0), 0);
