@@ -8,7 +8,7 @@ import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 import * as CC from './engine/countryConundrum.js';
 
-const BUILD = 'b79.ba344fa';
+const BUILD = 'b80.ab82460';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
