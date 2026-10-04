@@ -8,7 +8,7 @@ import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 import * as CC from './engine/countryConundrum.js';
 
-const BUILD = 'b76.eb57626';
+const BUILD = 'b78.e673a3b';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -380,7 +380,7 @@ function setup501() {
       <label>Players</label>
       <div class="chips" id="np">${[1,2,3,4].map(i =>
         `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i === 1 ? 'Solo' : i}</button>`).join('')}</div>
-      <div id="names">${Array.from({length: n}, (_, i) =>
+      <div id="names">${n === 1 ? '' : Array.from({length: n}, (_, i) =>
         `<input class="nm" placeholder="Player ${i+1}" style="margin-top:8px">`).join('')}</div>
       <button class="btn" id="go" ${club ? '' : 'disabled'}>${club ? 'Start' : (kind === 'country' ? 'Choose a country' : 'Choose a club')}</button></div>`));
 
@@ -443,7 +443,10 @@ function setup501() {
     app.querySelectorAll('#clock .chip').forEach(c => c.onclick = () => { turnSeconds = +c.dataset.v; redraw(); });
     app.querySelectorAll('#limit .chip').forEach(c => c.onclick = () => { limit = +c.dataset.v; redraw(); });
     document.getElementById('go').onclick = () => {
-      const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);
+      // Solo asks for no name, so there is no input to read: the count is the
+      // source of truth for how many players there are, not the markup.
+      const typed = [...app.querySelectorAll('.nm')].map(i => i.value.trim());
+      const names = Array.from({ length: n }, (_, k) => typed[k] || `Player ${k + 1}`);
       G = F501.createGame({ club, kind, metric, scope, names, start, hints, turnSeconds, limit });
       F5QUIT = false; F5LIST = null; F5HINT = null;
       reset501Clock();
@@ -507,7 +510,7 @@ function play501(msg = null, tone = '') {
     <div class="board">${G.players.map((p, i) => {
       const last = p.history[p.history.length - 1];
       return `<div class="seat ${i === G.turn && !G.finished ? 'active' : ''}">
-        <div><div class="nm">${esc(p.name)}</div>
+        <div>${solo ? '' : `<div class="nm">${esc(p.name)}</div>`}
         ${last ? `<div class="last">${esc(last.name || 'no player')} · ${last.score || 0}</div>` : ''}</div>
         <div class="sc">${p.score}</div></div>`; }).join('')}</div>
     ${G.finished ? `
@@ -536,7 +539,7 @@ function play501(msg = null, tone = '') {
     : `
       ${G.turnSeconds ? `<div class="clock"><div class="fill" id="f5fill"></div>
         <span class="num" id="f5num">${G.turnSeconds}</span></div>` : ''}
-      <div class="turnline"><b>${esc(G.players[G.turn].name)}</b> to throw — name ${/^[aeiou]/i.test(shortClub(G.club)) ? 'an' : 'a'} ${esc(shortClub(G.club))} player</div>
+      <div class="turnline">${solo ? '' : `<b>${esc(G.players[G.turn].name)}</b> to throw — `}name ${/^[aeiou]/i.test(shortClub(G.club)) ? 'an' : 'a'} ${esc(shortClub(G.club))} player</div>
       ${F5HINT ? `<div class="opts">${F5HINT.map(o =>
           `<button class="opt" data-hid="${esc(o.id)}">${esc(o.name)}</button>`).join('')}</div>`
         : `<div class="entry"><input id="guess" placeholder="Player name" autocomplete="off"
@@ -565,7 +568,7 @@ function play501(msg = null, tone = '') {
       ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}`}
     <ul class="log">${G.players.flatMap(p => p.history.map((h, i) => ({ p, h, i })))
       .sort((a, b) => b.i - a.i).slice(0, 12).map(({ p, h }) =>
-        `<li><span class="who">${esc(p.name)}</span><span>${esc(h.name || '—')}</span>
+        `<li>${solo ? '' : `<span class="who">${esc(p.name)}</span>`}<span>${esc(h.name || '—')}</span>
         <span class="pts ${h.score ? '' : 'zero'}">${h.score || 0}</span></li>`).join('')}</ul>
   </div>`));
   document.getElementById('back').onclick = home;
