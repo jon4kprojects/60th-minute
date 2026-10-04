@@ -32,6 +32,11 @@ MIN_SPELL_APPS  = 15    # below this, a spell is noise in a career path
 # bit from a professional whose figures nobody recorded. Three lost Alexandra
 # Popp and Adam Marusic, who are neither.
 MIN_CAREER_SPELLS = int(os.environ.get("MIN_CAREER_SPELLS", "2"))
+# Sitelinks: how many language Wikipedias carry an article. The extract pulls a
+# wide net and this is where it is drawn in, so the cut can be moved without
+# refetching half a gigabyte. Seven is a working professional - Jeremy Goss has
+# nine - and it is the point where the download stops being worth the players.
+MIN_FAME = int(os.environ.get("MIN_FAME", "7"))
 MIN_CLUBS       = 1     # keep one-club legends (Giggs, Totti, Maldini):
                         # Football 501 needs them, and Career Path filters
                         # for >=3 clubs at generation time anyway
@@ -198,6 +203,8 @@ out, rejected = [], collections.Counter()
 for pid, p in players.items():
     if not p["name"]:
         rejected["no usable name"] += 1; continue
+    if (p["fame"] or 0) < MIN_FAME:
+        rejected["below the fame floor"] += 1; continue
     raw = spells.get(pid, [])
     career_apps = sum(s["apps"] or 0 for s in raw)
     # The floor is there to drop people famous for something else who played a

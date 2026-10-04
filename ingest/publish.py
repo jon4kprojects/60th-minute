@@ -60,6 +60,26 @@ def main():
     # Derived from the data alone, never from the build counter. Every phone
     # re-downloads the whole 7MB when this string changes, so a code-only
     # release must leave it exactly where it was.
+    # Club names are interned for the journey and put back on arrival. Every
+    # club name appears once in a shared table and the records hold an index,
+    # which takes 3MB off the wire - gzip's window is far too small to spot that
+    # "Clube de Regatas do Flamengo" has already gone past three hundred times.
+    names = {}
+    def cid(n):
+        if n not in names:
+            names[n] = len(names)
+        return names[n]
+    for p in players:
+        p["allClubs"] = [cid(c) for c in (p.get("allClubs") or [])]
+        for c in (p.get("clubs") or []):
+            c["club"] = cid(c["club"])
+        if p.get("clubTotals"):
+            p["clubTotals"] = {str(cid(k)): v for k, v in p["clubTotals"].items()}
+    table = [None] * len(names)
+    for n, i in names.items():
+        table[i] = n
+    db["clubNames"] = table
+
     version = f"1.{digest[:8]}"
     # the map ships beside the dataset and is versioned with it
     world = os.path.join(ROOT, "ingest", "out", "world.json")

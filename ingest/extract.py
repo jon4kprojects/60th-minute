@@ -31,9 +31,17 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX schema: <http://schema.org/>
 """
 
-# Most-linked footballers. ORDER BY + LIMIT instead of FILTER (see module docstring).
-FAMOUS = "{ SELECT ?p ?n WHERE { ?p wdt:P106 wd:Q937857 . ?p wikibase:sitelinks ?n } " \
-         "ORDER BY DESC(?n) LIMIT %d }" % TOP_N
+# Most-linked footballers. ORDER BY + LIMIT instead of FILTER (see module
+# docstring). The tie-break on ?p matters: thousands of players share a sitelink
+# count, and without a total order the window a chunk sees can shift between
+# requests, so a player could be fetched twice or missed entirely.
+CHUNK = int(os.environ.get("CHUNK", "20000"))
+
+def famous(limit, offset):
+    return ("{ SELECT ?p ?n WHERE { ?p wdt:P106 wd:Q937857 . ?p wikibase:sitelinks ?n } "
+            f"ORDER BY DESC(?n) ?p LIMIT {limit} OFFSET {offset} }}")
+
+FAMOUS = "%%FAMOUS%%"
 
 
 def sparql(query, label):
@@ -114,11 +122,52 @@ QUERIES = {
     }}""",
 }
 
+def take_lock():
+    """
+    One extract at a time. Two runs writing raw_spells.json at once interleave
+    their output into a file that is not JSON and not obviously broken either -
+    it cost a full re-run to notice.
+    """
+    lock = os.path.join(OUT, ".extract.lock")
+    if os.path.exists(lock):
+        try:
+            pid = int(open(lock).read().strip())
+            os.kill(pid, 0)
+        except (ValueError, ProcessLookupError, PermissionError):
+            pass                                  # stale lock from a dead run
+        else:
+            raise SystemExit(f"another extract is already running (pid {pid})")
+    open(lock, "w").write(str(os.getpid()))
+    return lock
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    print(f"Extracting top {TOP_N:,} footballers from Wikidata via QLever\n")
-    for name, q in QUERIES.items():
-        rows = sparql(q, name)
-        with open(os.path.join(OUT, f"raw_{name}.json"), "w") as f:
-            json.dump(rows, f)
-    print(f"\nWrote raw_*.json to {OUT}")
+    lockfile = take_lock()
+    print(f"Extracting top {TOP_N:,} footballers from Wikidata via QLever")
+    print(f"in chunks of {CHUNK:,}\n")
+    # One request for 120,000 players' club spells is most of a gigabyte of JSON,
+    # and curl's output is captured whole before it is parsed - the process was
+    # being killed outright, with nothing in the log to say so. Chunking bounds
+    # every response, and a chunk that fails costs one retry rather than the run.
+    for name, template in QUERIES.items():
+        total = 0
+        out_path = os.path.join(OUT, f"raw_{name}.json")
+        with open(out_path, "w") as f:
+            f.write("[")
+            first = True
+            for offset in range(0, TOP_N, CHUNK):
+                take = min(CHUNK, TOP_N - offset)
+                q = template.replace("%%FAMOUS%%", famous(take, offset))
+                rows = sparql(q, f"{name} {offset:,}+")
+                for r in rows:
+                    if not first:
+                        f.write(",")
+                    json.dump(r, f)
+                    first = False
+                total += len(rows)
+                del rows
+            f.write("]")
+        print(f"  {name:22s} {total:9,d} rows total\n")
+    os.remove(lockfile)
+    print(f"Wrote raw_*.json to {OUT}")

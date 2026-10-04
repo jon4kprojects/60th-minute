@@ -84,6 +84,20 @@ export async function loadData() {
       return y.length ? Math.floor(Math.min(...y) / 10) * 10 : null;
     },
   };
+  // Club names travel as indices into a shared table; put them back before
+  // anything else looks at the data, so nothing downstream knows this happened.
+  if (raw.clubNames) {
+    const N = raw.clubNames;
+    for (const p of DB.players) {
+      if (p.allClubs) p.allClubs = p.allClubs.map(i => N[i]);
+      if (p.clubs) for (const c of p.clubs) c.club = N[c.club];
+      if (p.clubTotals) {
+        const t = {};
+        for (const k in p.clubTotals) t[N[k]] = p.clubTotals[k];
+        p.clubTotals = t;
+      }
+    }
+  }
   buildIndexes(DB);
   DB.topFiveClubs = new Set(raw.topFiveClubs || []);
   DB.clubCountry = raw.clubCountry || {};
