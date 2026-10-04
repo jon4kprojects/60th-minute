@@ -6,6 +6,7 @@
 // visit in darts, so the skill is finding players with a usable number rather
 // than simply the most famous name.
 import { lookup } from '../names.js';
+import { shortClub } from '../data.js';
 
 // Labelled "appearances", not "league appearances": Wikidata mixes the two
 // conventions (Giggs is recorded at 672 for Man Utd, which is all competitions;
@@ -27,6 +28,10 @@ export const SCOPES = {
   all:    { label: 'All competitions', inline: 'all competitions', suffix: '' },
   league: { label: 'League only',      inline: 'league only',      suffix: 'lg' },
 };
+/** Throws this player has left under a limit, or null when there is none. */
+export const throwsLeft = (game, i = game.turn) =>
+  game.limit ? Math.max(0, game.limit - game.players[i].history.length) : null;
+
 export const statKey = (metric, scope) =>
   scope === 'league' ? 'lg' + metric[0].toUpperCase() + metric.slice(1) : metric;
 
@@ -69,12 +74,18 @@ export const hasAllComps = (db, clubName) =>
  * consistent convention. Raw Wikidata figures are still never used: they mix
  * scopes and are sometimes simply wrong (Drogba read 28 for Chelsea, not 381).
  */
+// Reserve and academy sides survive as clubs in their own right because people
+// genuinely played for them, but a leg of Real Madrid C is not a leg of Real
+// Madrid, and offering both in one list invites the wrong pick.
+const RESERVE = /\b(?:B|C|II|III|U-?\d\d|Juvenil|Castilla|Atl[eè]tic|Reserves?|Academy|Youth|Amateure?)$|\bB team\b|\bII\b|^Jong\s/i;
+
 export function clubsWithDepth(db, min = 15) {
   const pool = db.playableClubs && db.playableClubs.size ? db.playableClubs : db.verifiedClubs;
   const c = new Map();
   for (const p of db.players)
     for (const s of p.clubs) {
       if (pool.size && !pool.has(s.club)) continue;
+      if (RESERVE.test(s.club)) continue;
       if (!c.has(s.club)) c.set(s.club, { name: s.club, country: s.country, n: 0 });
       c.get(s.club).n++;
     }
@@ -92,14 +103,118 @@ export const rosterOf = (db, name, kind = 'club') => {
 export const STARTS = [301, 401, 501];
 export const HINT_ALLOWANCES = [0, 3, 5];
 export const TURN_TIMES = [0, 30, 60];
+export const THROW_LIMITS = [0, 10];
 
 export function createGame({ club, kind = 'club', metric, scope = 'all', names,
-                             start = 501, hints = 3, turnSeconds = 0 }) {
+                             start = 501, hints = 3, turnSeconds = 0, limit = 0 }) {
   return {
-    club, kind, metric, scope, start, turnSeconds,
+    club, kind, metric, scope, start, turnSeconds, limit,
     players: names.map(n => ({ name: n, score: start, history: [], hints })),
     turn: 0, used: new Set(), finished: false, winner: null,
   };
+}
+
+/**
+ * Abandon the round. There is nothing hidden in 501 to reveal, so giving up
+ * ends it on a count-back: lowest score wins, the way an abandoned leg would be
+ * judged. Calling it a win would be a lie, so the result says it was given up.
+ */
+export function giveUp(game) {
+  let best = 0;
+  game.players.forEach((p, i) => { if (p.score < game.players[best].score) best = i; });
+  game.finished = true;
+  game.abandoned = true;
+  game.winner = best;
+  return game;
+}
+
+/**
+ * Every eligible player still unthrown whose figure would not bust you, with
+ * the name taken out: what he scored, where he played and in what order, when
+ * he started and stopped, his country and his position.
+ *
+ * Highest first, so the top row is the checkout if one exists. Everything shown
+ * is what the mode already deals in - goals for a goals leg, caps for a country
+ * - and the club list is the giveaway, which is the point: it costs a hint.
+ */
+export function redactedList(db, game, max = 40) {
+  const me = game.players[game.turn];
+  const rows = [];
+  for (const id of rosterOf(db, game.club, game.kind)) {
+    if (game.used.has(id)) continue;
+    const p = db.byId.get(id);
+    if (!p) continue;
+    const v = valueFor(p, game.club, game.metric, game.scope, game.kind);
+    if (v > me.score) continue;
+    const years = p.clubs.map(c => c.from).filter(Boolean);
+    const open = p.clubs.some(c => c.from && c.from === Math.max(...years) && !c.to);
+    const ends = p.clubs.map(c => c.to).filter(Boolean);
+    rows.push({
+      value: v,
+      nationality: p.nationality || null,
+      position: p.position || null,
+      from: years.length ? Math.min(...years) : null,
+      to: open ? null : (ends.length ? Math.max(...ends) : null),
+      ongoing: open,
+      // Dated spells in order, then any club we know he played for but hold no
+      // dates for. Without the second half the club being played could be
+      // missing from the very career it belongs to: a short Real Madrid spell
+      // lives in the membership layer while the ordered path only carries
+      // spells with figures, and a list that omits Real Madrid is no clue at all.
+      clubs: (() => {
+        const dated = p.clubs.slice().sort((a, b) => (a.from || 0) - (b.from || 0))
+                              .map(c => shortClub(c.club));
+        const seen = new Set(dated);
+        const rest = [...new Set((p.allClubs || []).map(shortClub))].filter(c => !seen.has(c));
+        return [...dated, ...rest];
+      })(),
+    });
+  }
+  rows.sort((a, b) => b.value - a.value);
+  return { rows: rows.slice(0, max), total: rows.length };
+}
+
+/**
+ * Everyone has had their throws and nobody has checked out, so the lowest score
+ * takes it. A leg that runs until somebody lands exactly can go on a long time
+ * once the obvious names are spent; this ends it on a count-back instead.
+ */
+function limitReached(game) {
+  return game.limit > 0 && game.players.every(p => p.history.length >= game.limit);
+}
+
+function settle(game) {
+  let best = 0;
+  game.players.forEach((p, i) => { if (p.score < game.players[best].score) best = i; });
+  game.finished = true;
+  game.winner = best;
+  game.onLimit = true;
+  // a tie on the count-back is a tie, and saying otherwise would be a fiction
+  game.drawn = game.players.filter(p => p.score === game.players[best].score).length > 1;
+  return game;
+}
+
+/**
+ * What each player needed, and who would have done it.
+ *
+ * The checkout is the whole tension of a leg, and on 17 left you want to know
+ * afterwards that Bergkamp was sitting there on 17 all along. Only players
+ * nobody has used are listed, since a used name could not have been thrown.
+ */
+export function checkouts(db, game, limit = 8) {
+  const roster = [...rosterOf(db, game.club, game.kind)]
+    .filter(id => !game.used.has(id))
+    .map(id => db.byId.get(id))
+    .filter(Boolean);
+  return game.players.map((p) => ({
+    name: p.name,
+    score: p.score,
+    names: roster
+      .filter(x => valueFor(x, game.club, game.metric, game.scope, game.kind) === p.score)
+      .sort((a, b) => (b.fame || 0) - (a.fame || 0))
+      .slice(0, limit)
+      .map(x => x.name),
+  }));
 }
 
 /** Pass, or run out of time: the turn moves on and the score stays put. */
@@ -107,6 +222,7 @@ export function passTurn(game, reason = 'pass') {
   const me = game.players[game.turn];
   me.history.push({ name: null, raw: 0, score: 0, status: reason });
   game.turn = (game.turn + 1) % game.players.length;
+  if (limitReached(game)) settle(game);
   return game;
 }
 
@@ -212,6 +328,7 @@ export function applyTurn(game, result) {
   } else {
     me.score -= result.score;
     game.turn = (game.turn + 1) % game.players.length;
+    if (limitReached(game)) settle(game);
   }
   return game;
 }

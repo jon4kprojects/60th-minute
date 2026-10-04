@@ -211,9 +211,16 @@ for pid, p in players.items():
     # numbers down - what he is not is someone we can quote figures for.
     # Camus and Niels Bohr have one club apiece, which is what the floor is for.
     dated = [s for s in raw if s["start"] and not RESERVE_RE.search(s["club"] or "")]
+    # A reserve spell is not a career, but reserves then the first team is the
+    # ordinary route and marks a professional. Buendia's Wikidata is Getafe B
+    # and Getafe and nothing else - no Norwich, no Aston Villa - so counting the
+    # senior spell alone threw him out. Camus and the rest still have one club
+    # and no reserve side, which is what the floor is actually for.
+    came_through = any(RESERVE_RE.search(s["club"] or "") for s in raw)
     no_stats = False
     if career_apps < MIN_CAREER_APPS:
-        if len(dated) >= MIN_CAREER_SPELLS or (pid in had_apps_stmt and p["fame"] >= 55):
+        if len(dated) >= MIN_CAREER_SPELLS or (dated and came_through) \
+           or (pid in had_apps_stmt and p["fame"] >= 55):
             no_stats = True
         else:
             rejected["too few career apps"] += 1; continue

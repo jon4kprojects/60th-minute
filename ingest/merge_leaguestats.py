@@ -73,10 +73,19 @@ for p in data["players"]:
         alltot[club] += 1
         if "lgApps" in t: allcov[club] += 1
 
+# Two different questions, which were being answered with one number.
+#
+# Whether a club can be PLAYED is whether we hold figures for enough of its
+# squad. Whether the LEAGUE ONLY option can be offered is whether enough of
+# those figures break league out. Gating the first on the second threw out
+# Real Madrid, Barcelona and AC Milan - 591 clubs with real depth - because
+# their squads are full of players whose English Wikipedia infobox nobody has
+# filled in. The scope control already refuses a scope a club cannot honour,
+# so this gate was doing that job a second time and much more bluntly.
 league_ok = sorted(c for c in alltot
                    if alltot[c] >= 12 and allcov[c] / alltot[c] >= 0.5)
 data["leagueScopeClubs"] = league_ok
-data["playableClubs"] = sorted(set(league_ok) | ver)
+data["playableClubs"] = sorted({c for c in alltot if alltot[c] >= 12} | ver)
 
 # Clubs in the five big leagues, for the Played for Both filter. P17 alone
 # cannot do this - it says United Kingdom for Arsenal and Celtic alike - so the

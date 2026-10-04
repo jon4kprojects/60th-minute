@@ -401,3 +401,29 @@ label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
 .zb{top:10px}
 .zb.out{top:52px}
 .zb:active{background:rgba(255,122,44,.22)}
+/* What each player needed when the leg was abandoned, and who would have done
+   it. This is the bit people argue about afterwards, so it gets real room. */
+.couts{margin:4px 0 14px}
+.cout{padding:11px 14px;border-radius:12px;background:var(--card);
+  border:1px solid var(--line);margin-bottom:7px}
+.cout .h{font-size:14px}
+.cout .h b{color:var(--hot)}
+.cout .d{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.45}
+
+/* The redacted player list. A scroll box, because on Barcelona at 76 left there
+   are six hundred of them and the useful ones are all at the top. */
+.plist{margin-top:10px;border:1px solid var(--line);border-radius:12px;
+  background:var(--card);max-height:46vh;overflow:auto}
+.plist .ph{position:sticky;top:0;background:var(--card);padding:10px 12px;
+  border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted);
+  letter-spacing:.02em;z-index:1}
+.plist .ph .x{float:right;background:none;border:0;color:var(--hot);font:inherit;
+  font-size:11.5px;cursor:pointer;text-decoration:underline}
+.pr{display:flex;gap:11px;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
+.pr:last-child{border-bottom:0}
+.pr .v{min-width:38px;text-align:right;font-size:17px;font-weight:800;
+  color:var(--hot);font-variant-numeric:tabular-nums;line-height:1.25}
+.pr .m{min-width:0;flex:1}
+.pr .t{font-size:13px;font-weight:650}
+.pr .t .y{color:var(--muted);font-weight:500;margin-left:6px}
+.pr .cl{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4;overflow-wrap:anywhere}

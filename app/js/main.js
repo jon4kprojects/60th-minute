@@ -8,7 +8,7 @@ import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 import * as CC from './engine/countryConundrum.js';
 
-const BUILD = 'b69.407b256';
+const BUILD = 'b74.31e1485';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -282,7 +282,7 @@ function setup501() {
     .sort((a, b) => shortClub(a.name).localeCompare(shortClub(b.name)));   // alphabetical
   let clubs = clubList();
   let club = null, metric = 'goals', scope = 'all', n = 2, filter = '';
-  let start = 501, hints = 3, turnSeconds = 0;
+  let start = 501, hints = 3, turnSeconds = 0, limit = 0;
   // Appearances for a club are caps for a country, and nobody calls them
   // appearances when the shirt is England's.
   const metricLabel = (k) => (kind === 'country' && k === 'apps') ? 'Caps' : F501.METRICS[k].label;
@@ -298,12 +298,15 @@ function setup501() {
   const draw = () => {
     // An international career has no league and cup to tell apart, so the
     // scope control is not shown and the figures are simply caps and goals.
-    const hasLg  = kind === 'country' ? false : (club ? F501.hasLeagueSplit(VIEW, club) : false);
-    const hasAll = kind === 'country' ? true  : (club ? F501.hasAllComps(VIEW, club) : true);
-    // A club without cross-checked all-competition figures plays on league
-    // figures; one without league figures plays on all-competitions.
-    if (!hasLg) scope = 'all';
-    else if (!hasAll) scope = 'league';
+    // Only a cross-checked club has all-competition figures. Everything else is
+    // scored on league figures taken from player infoboxes, so that is what the
+    // control has to say: Real Madrid showing "All competitions" over numbers
+    // that are league-only is the kind of claim a purist checks and we lose.
+    const hasAll = kind === 'country' ? true : (club ? F501.hasAllComps(VIEW, club) : true);
+    const hasLg  = kind === 'country' ? false
+      : (club ? (!hasAll || F501.hasLeagueSplit(VIEW, club)) : false);
+    if (!hasAll) scope = 'league';
+    else if (!hasLg) scope = 'all';
     const shown = clubs.filter(c => shortClub(c.name).toLowerCase().includes(filter.toLowerCase()));
     beginPaint('setup501');
     app.innerHTML = '';
@@ -360,6 +363,13 @@ function setup501() {
       <div class="chips" id="hints">${F501.HINT_ALLOWANCES.map(v =>
         `<button class="chip ${v === hints ? 'on' : ''}" data-v="${v}">${v || 'None'}</button>`).join('')}</div>
 
+      <label>Throws each</label>
+      <div class="chips" id="limit">${F501.THROW_LIMITS.map(v =>
+        `<button class="chip ${v === limit ? 'on' : ''}" data-v="${v}">${v || 'Unlimited'}</button>`).join('')}</div>
+      <div class="tag" style="margin:6px 2px 14px">${limit
+        ? `After ${limit} throws each, whoever is lowest wins. Checking out still ends it there and then.`
+        : 'Play until somebody lands on nothing exactly.'}</div>
+
       <label>Turn clock</label>
       <div class="chips" id="clock">${F501.TURN_TIMES.map(v =>
         `<button class="chip ${v === turnSeconds ? 'on' : ''}" data-v="${v}">${v ? v + 's' : 'Off'}</button>`).join('')}</div>
@@ -368,8 +378,8 @@ function setup501() {
         : 'No clock. Take as long as you like.'}</div>
 
       <label>Players</label>
-      <div class="chips" id="np">${[2,3,4].map(i =>
-        `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i}</button>`).join('')}</div>
+      <div class="chips" id="np">${[1,2,3,4].map(i =>
+        `<button class="chip ${i === n ? 'on' : ''}" data-n="${i}">${i === 1 ? 'Solo' : i}</button>`).join('')}</div>
       <div id="names">${Array.from({length: n}, (_, i) =>
         `<input class="nm" placeholder="Player ${i+1}" style="margin-top:8px">`).join('')}</div>
       <button class="btn" id="go" ${club ? '' : 'disabled'}>${club ? 'Start' : (kind === 'country' ? 'Choose a country' : 'Choose a club')}</button></div>`));
@@ -390,10 +400,22 @@ function setup501() {
         : clubs.filter(c => shortClub(c.name).toLowerCase().includes(t)).slice(0, 7);
       if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
       box.hidden = false;
-      box.innerHTML = hits.map(c =>
-        `<button class="sg" data-k="${esc(c.name)}">
-           <span class="n">${esc(shortClub(c.name))}</span>
-           <span class="m">${c.n} players</span></button>`).join('');
+      // Barcelona of Catalonia and Barcelona of Guayaquil are different clubs
+      // with the same short name, and a list offering both unlabelled is a coin
+      // toss. Only the ones that actually collide are labelled.
+      const dupe = new Set();
+      const seen = new Set();
+      for (const c of clubs) {
+        const k = shortClub(c.name);
+        if (seen.has(k)) dupe.add(k); else seen.add(k);
+      }
+      box.innerHTML = hits.map(c => {
+        const label = shortClub(c.name);
+        const where = dupe.has(label) && c.country ? ` \u00b7 ${c.country}` : '';
+        return `<button class="sg" data-k="${esc(c.name)}">
+           <span class="n">${esc(label)}${esc(where)}</span>
+           <span class="m">${c.n} players</span></button>`;
+      }).join('');
       box.querySelectorAll('.sg').forEach(b => b.onclick = () => {
         club = b.dataset.k; filter = ''; redraw();
       });
@@ -419,9 +441,11 @@ function setup501() {
     app.querySelectorAll('#start .chip').forEach(c => c.onclick = () => { start = +c.dataset.v; redraw(); });
     app.querySelectorAll('#hints .chip').forEach(c => c.onclick = () => { hints = +c.dataset.v; redraw(); });
     app.querySelectorAll('#clock .chip').forEach(c => c.onclick = () => { turnSeconds = +c.dataset.v; redraw(); });
+    app.querySelectorAll('#limit .chip').forEach(c => c.onclick = () => { limit = +c.dataset.v; redraw(); });
     document.getElementById('go').onclick = () => {
       const names = [...app.querySelectorAll('.nm')].map((i, k) => i.value.trim() || `Player ${k+1}`);
-      G = F501.createGame({ club, kind, metric, scope, names, start, hints, turnSeconds });
+      G = F501.createGame({ club, kind, metric, scope, names, start, hints, turnSeconds, limit });
+      F5QUIT = false; F5LIST = null; F5HINT = null;
       reset501Clock();
       play501();
     };
@@ -429,7 +453,7 @@ function setup501() {
   draw();
 }
 
-let F5DEADLINE = 0, F5CLOCK = null, F5HINT = null;
+let F5DEADLINE = 0, F5CLOCK = null, F5HINT = null, F5QUIT = false, F5LIST = null;
 
 /** A fresh clock for whoever is up, whether the last turn scored or busted. */
 function reset501Clock() {
@@ -451,7 +475,7 @@ function run501Clock() {
     if (left <= 0) {
       clearInterval(F5CLOCK); F5CLOCK = null;
       F501.passTurn(G, 'timeout');
-      F5HINT = null; reset501Clock();
+      F5HINT = null; F5LIST = null; reset501Clock();
       play501('Out of time \u2014 turn passed', 'no');
     }
   };
@@ -459,8 +483,13 @@ function run501Clock() {
   F5CLOCK = setInterval(tick, 200);
 }
 
+const throws = (p) => `${p.history.length} ${p.history.length === 1 ? 'throw' : 'throws'}`;
+
 function play501(msg = null, tone = '') {
   const intl = G.kind === 'country';
+  // Alone there is nobody to take a turn off you, so the leg is scored by how
+  // few throws it took rather than by who got there first.
+  const solo = G.players.length === 1;
   const m = F501.METRICS[G.metric];
   // "Appearances" is what a club gives you; a country gives you caps.
   const mLabel = intl && G.metric === 'apps' ? 'Caps' : m.label;
@@ -469,7 +498,8 @@ function play501(msg = null, tone = '') {
   app.innerHTML = '';
   app.append(el(`<div>
     <div class="bar"><button class="back" id="back">‹ Back</button>
-      <span>${esc(shortClub(G.club))} · ${esc(mLabel)}${intl ? '' : ' · ' + esc(F501.SCOPES[G.scope||'all'].label)}</span></div>
+      <span>${esc(shortClub(G.club))} · ${esc(mLabel)}${intl ? '' : ' · ' + esc(F501.SCOPES[G.scope||'all'].label)}</span>
+      ${G.limit && !G.finished ? `<span class="score">${F501.throwsLeft(G)} left</span>` : ''}</div>
     ${intl ? '<div class="scopeline">For that country only</div>'
            : (DB.statScope ? `<div class="scopeline">${esc(DB.statScope)}</div>` : '')}
     <div class="board">${G.players.map((p, i) => {
@@ -479,8 +509,26 @@ function play501(msg = null, tone = '') {
         ${last ? `<div class="last">${esc(last.name || 'no player')} · ${last.score || 0}</div>` : ''}</div>
         <div class="sc">${p.score}</div></div>`; }).join('')}</div>
     ${G.finished ? `
-      <div class="fb"><div class="h ok">${esc(G.players[G.winner].name)} checks out!</div>
-      <div class="d">Finished on ${G.players[G.winner].score}.</div></div>
+      <div class="fb"><div class="h ${G.abandoned || G.onLimit ? 'no' : 'ok'}">${
+        G.abandoned ? 'Round given up'
+        : G.onLimit ? (G.drawn ? 'Throws up \u2014 a tie'
+                               : esc(G.players[G.winner].name) + ' wins on the count-back')
+        : (solo ? 'Checked out!' : esc(G.players[G.winner].name) + ' checks out!')}</div>
+      <div class="d">${
+        G.abandoned ? (solo
+            ? `Stopped on ${G.players[0].score}, after ${throws(G.players[0])}.`
+            : `${esc(G.players[G.winner].name)} was closest on ${G.players[G.winner].score}.`)
+        : G.onLimit ? (G.drawn
+            ? `Level on ${G.players[G.winner].score} after ${G.limit} throws each. Nobody checked out.`
+            : `Lowest on ${G.players[G.winner].score} after ${G.limit} throws each. Nobody checked out.`)
+        : (solo
+            ? `${G.start} down to nothing in ${throws(G.players[0])}.`
+            : `Finished on ${G.players[G.winner].score}.`)}</div></div>
+      ${(G.abandoned || G.onLimit) ? `<div class="couts">${F501.checkouts(VIEW, G).map(c => `
+        <div class="cout"><div class="h"><b>${esc(c.name)}</b> needed ${c.score}</div>
+          <div class="d">${c.names.length
+            ? esc(c.names.join(' \u00b7 '))
+            : 'Nobody left on exactly that number.'}</div></div>`).join('')}</div>` : ''}
       <button class="btn" id="again">Play again</button>
       <button class="btn ghost" id="home2">Home</button>`
     : `
@@ -496,8 +544,22 @@ function play501(msg = null, tone = '') {
       <div class="row2">
         ${!F5HINT && G.players[G.turn].hints > 0
           ? `<button class="btn ghost" id="hint">Hint (${G.players[G.turn].hints} left)</button>` : ''}
-        <button class="btn ghost" id="pass">Pass</button>
+        ${!F5LIST && G.players[G.turn].hints > 0
+          ? `<button class="btn ghost" id="plist">Player list</button>` : ''}
+        ${solo ? '' : '<button class="btn ghost" id="pass">Pass</button>'}
       </div>
+      ${F5LIST ? `
+        <div class="plist">
+          <div class="ph">${F5LIST.total.toLocaleString()} could not bust you \u00b7 showing
+            ${F5LIST.rows.length}, highest first \u00b7 names hidden
+            <button class="x" id="plclose">close</button></div>
+          ${F5LIST.rows.map(r => `<div class="pr">
+            <div class="v">${r.value}</div>
+            <div class="m"><div class="t">${esc([r.nationality, r.position].filter(Boolean).join(' \u00b7 ') || 'Unknown')}
+              <span class="y">${r.from || '?'}\u2013${r.ongoing ? 'present' : (r.to || '?')}</span></div>
+              <div class="cl">${esc(r.clubs.join(' \u203a '))}</div></div></div>`).join('')}
+        </div>` : ''}
+      <button class="btn ghost" id="quit">${F5QUIT ? 'Tap again to end the round' : 'Give up'}</button>
       ${msg ? `<div class="fb"><div class="h ${tone}">${esc(msg)}</div></div>` : ''}`}
     <ul class="log">${G.players.flatMap(p => p.history.map((h, i) => ({ p, h, i })))
       .sort((a, b) => b.i - a.i).slice(0, 12).map(({ p, h }) =>
@@ -509,21 +571,49 @@ function play501(msg = null, tone = '') {
   const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
 
   const commit = (r) => {
+    F5QUIT = false;
     const t = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
     F501.applyTurn(G, r);
-    F5HINT = null; reset501Clock();
+    F5HINT = null; F5LIST = null; reset501Clock();
     play501(F501.explain(r, mInline), t);
+  };
+
+  // Two taps. A mis-tap that ended somebody else's leg would be unforgivable
+  // in a four-player game, and a dialog on a phone is worse than a second tap.
+  const quit = document.getElementById('quit');
+  if (quit) quit.onclick = () => {
+    if (!F5QUIT) { F5QUIT = true; play501(msg, tone); return; }
+    F5QUIT = false; clearInterval(F5CLOCK); F5CLOCK = null;
+    F501.giveUp(G);
+    play501();
   };
 
   const pass = document.getElementById('pass');
   if (pass) pass.onclick = () => {
+    F5QUIT = false;
     F501.passTurn(G);
-    F5HINT = null; reset501Clock();
+    F5HINT = null; F5LIST = null; reset501Clock();
     play501(`${G.players[(G.turn - 1 + G.players.length) % G.players.length].name} passed`, 'no');
   };
 
+  // The list is the other way to spend a hint. It never names anybody, but the
+  // top row is the checkout and a career path gives the rest away, so it has to
+  // cost the same as being handed four names.
+  const plist = document.getElementById('plist');
+  if (plist) plist.onclick = () => {
+    F5QUIT = false;
+    const l = F501.redactedList(VIEW, G);
+    if (!l.rows.length) return play501('Nobody left who would not bust you', 'no');
+    G.players[G.turn].hints--;
+    F5LIST = l;
+    play501(msg, tone);
+  };
+  const plc = document.getElementById('plclose');
+  if (plc) plc.onclick = () => { F5LIST = null; play501(msg, tone); };
+
   const hint = document.getElementById('hint');
   if (hint) hint.onclick = () => {
+    F5QUIT = false;
     const opts = F501.hintOptions(VIEW, G, Math.random);
     if (!opts) return;
     G.players[G.turn].hints--;
@@ -606,6 +696,13 @@ function setupChain() {
       <label>Hints each</label>
       <div class="chips" id="hints">${F501.HINT_ALLOWANCES.map(v =>
         `<button class="chip ${v === hints ? 'on' : ''}" data-v="${v}">${v || 'None'}</button>`).join('')}</div>
+
+      <label>Throws each</label>
+      <div class="chips" id="limit">${F501.THROW_LIMITS.map(v =>
+        `<button class="chip ${v === limit ? 'on' : ''}" data-v="${v}">${v || 'Unlimited'}</button>`).join('')}</div>
+      <div class="tag" style="margin:6px 2px 14px">${limit
+        ? `After ${limit} throws each, whoever is lowest wins. Checking out still ends it there and then.`
+        : 'Play until somebody lands on nothing exactly.'}</div>
 
       <label>Turn clock</label>
       <div class="chips" id="clock">${F501.TURN_TIMES.map(v =>

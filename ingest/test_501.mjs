@@ -148,5 +148,55 @@ console.log('=== the international game ===');
      'and the name resolves without the umlaut');
 }
 
+
+console.log('=== give up, solo, and the throw limit ===');
+{
+  const g = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['Jon', 'Rich'], start: 501 });
+  g.players[0].score = 17; g.players[1].score = 3;
+  F.giveUp(g);
+  ok(g.finished && g.abandoned, 'giving up ends the round and says so');
+  ok(g.players[g.winner].name === 'Rich', 'the lowest score takes an abandoned leg');
+  const cs = F.checkouts(db, g);
+  ok(cs.length === 2 && cs[0].score === 17, 'checkouts are reported per player');
+  ok(cs[0].names.length > 0 && cs[0].names.every(n => {
+    const p = db.players.find(x => x.name === n);
+    return F.valueFor(p, 'Arsenal F.C.', 'goals', 'all') === 17;
+  }), `everyone listed for 17 is on exactly 17 (${cs[0].names.slice(0,3).join(', ')})`);
+
+  const used = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['A'], start: 501 });
+  used.players[0].score = 17;
+  const first = F.checkouts(db, used)[0].names[0];
+  used.used.add(db.players.find(p => p.name === first).id);
+  ok(!F.checkouts(db, used)[0].names.includes(first), 'a player already thrown is not offered as a checkout');
+}
+{
+  const solo = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['Jon'], start: 301 });
+  ok(solo.players.length === 1, 'a solo leg is one player');
+  F.applyTurn(solo, { status: 'ok', player: { id: 'x', name: 'y' }, raw: 10, score: 10 });
+  ok(solo.turn === 0 && solo.players[0].score === 291, 'the turn comes straight back round');
+}
+{
+  const g = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['A', 'B'],
+                           start: 501, limit: 10 });
+  ok(F.throwsLeft(g) === 10, 'ten throws each to start');
+  for (let i = 0; i < 20; i++) {
+    if (g.finished) break;
+    F.applyTurn(g, { status: 'ok', player: { id: 'p' + i, name: 'n' }, raw: i < 10 ? 5 : 1, score: i < 10 ? 5 : 1 });
+  }
+  ok(g.finished && g.onLimit, 'the leg ends when both have had their ten');
+  ok(g.players.every(p => p.history.length === 10), 'and not before either has');
+  ok(g.players[g.winner].score === Math.min(...g.players.map(p => p.score)),
+     'the lowest score wins on the count-back');
+
+  const tie = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['A', 'B'],
+                             start: 501, limit: 1 });
+  F.applyTurn(tie, { status: 'ok', player: { id: 'a', name: 'a' }, raw: 5, score: 5 });
+  F.applyTurn(tie, { status: 'ok', player: { id: 'b', name: 'b' }, raw: 5, score: 5 });
+  ok(tie.finished && tie.drawn, 'level scores are reported as a tie, not a win');
+
+  const unl = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['A'], start: 501 });
+  ok(F.throwsLeft(unl) === null, 'with no limit there is nothing to count down');
+}
+
 console.log(fail ? `\nFAIL (${fail})` : '\nPASS');
 process.exit(fail?1:0);
