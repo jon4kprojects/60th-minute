@@ -114,10 +114,13 @@ export const TURN_TIMES = [0, 30, 60];
 export const THROW_LIMITS = [0, 10];
 
 export function createGame({ club, kind = 'club', metric, scope = 'all', names,
-                             start = 501, hints = 3, turnSeconds = 0, limit = 0 }) {
+                             start = 501, hints = 3, turnSeconds = 0, limit = 0,
+                             lists = 1 }) {
   return {
     club, kind, metric, scope, start, turnSeconds, limit,
-    players: names.map(n => ({ name: n, score: start, history: [], hints })),
+    // The list and the hints are spent from separate purses: the list shows the
+    // whole field and is worth far more than four names, so one is plenty.
+    players: names.map(n => ({ name: n, score: start, history: [], hints, lists })),
     turn: 0, used: new Set(), finished: false, winner: null,
   };
 }
@@ -180,6 +183,47 @@ export function redactedList(db, game, max = 40) {
   }
   rows.sort((a, b) => b.value - a.value);
   return { rows: rows.slice(0, max), total: rows.length };
+}
+
+/**
+ * The checkout that was there all along, for the end of a leg nobody won.
+ *
+ * One player if one would have done it, and the best known such player, because
+ * "you needed Bergkamp" lands and "you needed Nwankwo Kanu's reserve-team
+ * understudy" does not. Failing that, the two best-known players who add up -
+ * which is how a darts checkout is usually quoted anyway.
+ */
+export function checkoutRoute(db, game, i = 0, kind = null) {
+  const target = game.players[i].score;
+  if (target <= 0) return null;
+  const byValue = new Map();
+  for (const id of rosterOf(db, game.club, game.kind)) {
+    if (game.used.has(id)) continue;
+    const p = db.byId.get(id);
+    if (!p) continue;
+    const v = valueFor(p, game.club, game.metric, game.scope, game.kind);
+    if (v <= 0 || v > target) continue;
+    if (!byValue.has(v)) byValue.set(v, []);
+    byValue.get(v).push(p);
+  }
+  for (const list of byValue.values()) list.sort((a, b) => (b.fame || 0) - (a.fame || 0));
+
+  const single = byValue.get(target);
+  if (single && single.length) return { players: [single[0].name], values: [target] };
+
+  let best = null;
+  for (const [v, list] of byValue) {
+    const rest = byValue.get(target - v);
+    if (!rest || !rest.length) continue;
+    // two different men, so a value with only one player cannot pair with itself
+    const a = list[0];
+    const b = rest[0] === a ? rest[1] : rest[0];
+    if (!b) continue;
+    const fame = (a.fame || 0) + (b.fame || 0);
+    if (!best || fame > best.fame)
+      best = { fame, players: [a.name, b.name], values: [v, target - v] };
+  }
+  return best ? { players: best.players, values: best.values } : null;
 }
 
 /**
@@ -322,7 +366,7 @@ export function scoreEntry(db, idx, game, rawName) {
   // -10 made a checkout a formality - there was almost always somebody who
   // would do. Every low figure from 1 to 20 has players at a club of any size,
   // so an exact finish is reachable, and a bust now costs the turn.
-  if (rem < 0)  return { status: 'bust', player: p, raw, score: 0, back: cur };
+  if (rem < 0)  return { status: 'bust', player: p, raw, score: 0, back: cur, over: -rem };
   if (rem === 0) return { status: 'win',  player: p, raw, score, remaining: 0 };
   return { status: 'ok', player: p, raw, score, remaining: rem };
 }
@@ -347,10 +391,10 @@ export function applyTurn(game, result) {
 
 export const explain = (r, metricLabel) => ({
   unknown:    'No player by that name found',
-  duplicate:  `${r.player?.name} has already been named this round`,
+  duplicate:  `${r.player?.name} \u2014 already used`,
   ineligible: `${r.player?.name} never played for them`,
   'no-data':  `No ${metricLabel} recorded for ${r.player?.name} here`,
-  bust:       `${r.player?.name} \u2014 ${r.raw}. Too many: bust, back to ${r.back}`,
+  bust:       `${r.player?.name} \u2014 ${r.raw}. That is ${r.over} too many: bust, back to ${r.back}`,
   pass:       'Passed',
   timeout:    'Out of time',
   ok:         r.raw === 0 ? `${r.player?.name} — none. Nothing off`

@@ -198,5 +198,46 @@ console.log('=== give up, solo, and the throw limit ===');
   ok(F.throwsLeft(unl) === null, 'with no limit there is nothing to count down');
 }
 
+
+console.log('=== allowances, bust detail, checkout routes ===');
+{
+  const g = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['A', 'B'],
+                           start: 501, hints: 3, lists: 1 });
+  ok(g.players.every(p => p.hints === 3 && p.lists === 1),
+     'hints and the list come from separate allowances');
+
+  g.players[0].score = 5;
+  const roster = [...F.rosterOf(db, 'Arsenal F.C.')].map(id => db.byId.get(id));
+  const big = roster.find(p => F.valueFor(p, 'Arsenal F.C.', 'goals', 'all') === 228);
+  const bust = F.scoreEntry(db, idx, g, big.name);
+  ok(bust.status === 'bust' && bust.over === 223,
+     `a bust reports how far over it went (${bust.over})`);
+  ok(F.explain(bust, 'goals').includes('223 too many'), 'and says so in words');
+
+  // naming somebody twice
+  g.players[0].score = 400;
+  const first = F.scoreEntry(db, idx, g, big.name);
+  F.applyTurn(g, first);
+  const again = F.scoreEntry(db, idx, g, big.name);
+  ok(again.status === 'duplicate' && F.explain(again, 'goals').includes('already used'),
+     'a player already thrown comes back as already used');
+}
+{
+  const g = F.createGame({ club: 'Arsenal F.C.', metric: 'goals', names: ['A'], start: 501 });
+  g.players[0].score = 17;
+  const one = F.checkoutRoute(db, g, 0);
+  ok(one && one.players.length === 1 && one.values[0] === 17,
+     `one player finishes 17 (${one && one.players[0]})`);
+
+  g.players[0].score = 300;                     // beyond anybody's single total
+  const two = F.checkoutRoute(db, g, 0);
+  ok(two && two.players.length === 2, `two players finish 300 (${two && two.players.join(' + ')})`);
+  ok(two && two.values[0] + two.values[1] === 300, 'and their figures add up exactly');
+  ok(two && two.players[0] !== two.players[1], 'and they are two different men');
+
+  g.players[0].score = 99999;
+  ok(F.checkoutRoute(db, g, 0) === null, 'an impossible number offers no route');
+}
+
 console.log(fail ? `\nFAIL (${fail})` : '\nPASS');
 process.exit(fail?1:0);

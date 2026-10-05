@@ -20,6 +20,13 @@ RESERVE_RE = re.compile(
     r"(\sB$|\sII$|\bReserves?\b|\bU-?\d\d\b|\bYouth\b|\bAcademy\b"
     r"|Atl[eè]tic$|Castilla|\bB team\b|\bAmateure\b|\bII$)", re.I)
 
+# Women's clubs, excluded for the same reason as the women's national sides.
+# The players stay findable where they also have a men's-game record; what goes
+# is the club, so no round is ever built on one.
+WOMEN_RE = re.compile(
+    r"\b(W\.?F\.?C\.?|Femenin[oa]|Feminin[oe]|Femminile|Women|Ladies|Frauen|"
+    r"Damer|Dames|Kvinner|Naiset)\b|\(women\)", re.I)
+
 # Wikidata has year-shaped typos in appearance fields (Maldini is recorded with
 # 1987 appearances for Milan; he made 902). The all-time single-club record is
 # around 1000, so anything past this is a data-entry error, not a career.
@@ -90,6 +97,11 @@ NAT_DROP_RE = re.compile(r"\s(?:A2|A'|military|League XI)$|-2$", re.I)
 
 def nationality(team):
     t = team.lower()
+    # The name pattern strips "women's" along with "men's", which quietly merged
+    # the women's international record into the men's: a women's cap counted as
+    # an England cap. This is a men's football quiz, so the women's game is left
+    # out rather than folded in.
+    if "women" in t or "ladies" in t: return None
     if any(sk in t for sk in SENIOR_SKIP): return None
     m = NAT_RE.match(team.strip())
     if not (m and m.group(1)): return None
@@ -217,7 +229,8 @@ for pid, p in players.items():
     # dated senior spells make a footballer whether or not anyone wrote the
     # numbers down - what he is not is someone we can quote figures for.
     # Camus and Niels Bohr have one club apiece, which is what the floor is for.
-    dated = [s for s in raw if s["start"] and not RESERVE_RE.search(s["club"] or "")]
+    dated = [s for s in raw if s["start"] and not RESERVE_RE.search(s["club"] or "")
+               and not WOMEN_RE.search(s["club"] or "")]
     # A reserve spell is not a career, but reserves then the first team is the
     # ordinary route and marks a professional. Buendia's Wikidata is Getafe B
     # and Getafe and nothing else - no Norwich, no Aston Villa - so counting the
@@ -240,6 +253,7 @@ for pid, p in players.items():
     # small gets filtered; an unknown one is kept.
     keep = [s for s in raw
             if s["start"] and not RESERVE_RE.search(s["club"] or "")
+            and not WOMEN_RE.search(s["club"] or "")
             and (s["apps"] is None or s["apps"] >= MIN_SPELL_APPS or no_stats)]
     keep.sort(key=lambda s: (s["start"], s["end"] or s["start"]))
     # Wikidata often carries SEVERAL statements for one spell at a club - one

@@ -8,7 +8,7 @@ import * as CHN from './engine/chain.js';
 import * as GRID from './engine/grid.js';
 import * as CC from './engine/countryConundrum.js';
 
-const BUILD = 'b80.ab82460';
+const BUILD = 'b83.ae1acd9';
 const app = document.getElementById('app');
 
 // Every screen re-renders by rebuilding its markup, which is fine on arrival
@@ -151,6 +151,8 @@ function home() {
       <div class="t">Football 501</div><div class="b">Darts, with footballers · 2–4 players</div></button>
     <button class="card hot" data-go="chain">
       <div class="t">The Chain</div><div class="b">Player, team, player, team · 2–4 players</div></button>
+    <button class="card" data-go="db" style="order:99">
+      <div class="t">The Database</div><div class="b">Look anybody up \u00b7 clubs, goals, caps</div></button>
     <button class="card hot" data-go="cc">
       <div class="t">Country Conundrum</div><div class="b">Find 30 nations on the map \u00b7 solo</div></button>
     <button class="card hot" data-go="grid">
@@ -175,6 +177,7 @@ function home() {
     if (g === 'chain') return setupChain();
     if (g === 'grid') return setupGrid();
     if (g === 'cc') return setupCC();
+    if (g === 'db') return database();
     if (MODES[g]) return setupQuiz(g);
     start(g);
   });
@@ -447,8 +450,8 @@ function setup501() {
       // source of truth for how many players there are, not the markup.
       const typed = [...app.querySelectorAll('.nm')].map(i => i.value.trim());
       const names = Array.from({ length: n }, (_, k) => typed[k] || `Player ${k + 1}`);
-      G = F501.createGame({ club, kind, metric, scope, names, start, hints, turnSeconds, limit });
-      F5QUIT = false; F5LIST = null; F5HINT = null;
+      G = F501.createGame({ club, kind, metric, scope, names, start, hints, turnSeconds, limit, lists: 1 });
+      F5QUIT = false; F5LIST = null; F5HINT = null; F5ASK = null;
       reset501Clock();
       play501();
     };
@@ -457,6 +460,7 @@ function setup501() {
 }
 
 let F5DEADLINE = 0, F5CLOCK = null, F5HINT = null, F5QUIT = false, F5LIST = null;
+let F5ASK = null;   // 'hint' | 'list' — an aid waiting on a second tap
 
 /** A fresh clock for whoever is up, whether the last turn scored or busted. */
 function reset501Clock() {
@@ -478,7 +482,7 @@ function run501Clock() {
     if (left <= 0) {
       clearInterval(F5CLOCK); F5CLOCK = null;
       F501.passTurn(G, 'timeout');
-      F5HINT = null; F5LIST = null; reset501Clock();
+      F5HINT = null; F5LIST = null; F5ASK = null; reset501Clock();
       play501('Out of time \u2014 turn passed', 'no');
     }
   };
@@ -529,11 +533,20 @@ function play501(msg = null, tone = '') {
         : (solo
             ? `${G.start} down to nothing in ${throws(G.players[0])}.`
             : `Finished on ${G.players[G.winner].score}.`)}</div></div>
-      ${(G.abandoned || G.onLimit) ? `<div class="couts">${F501.checkouts(VIEW, G).map(c => `
-        <div class="cout"><div class="h"><b>${esc(c.name)}</b> needed ${c.score}</div>
-          <div class="d">${c.names.length
-            ? esc(c.names.join(' \u00b7 '))
-            : 'Nobody left on exactly that number.'}</div></div>`).join('')}</div>` : ''}
+      ${(G.abandoned || G.onLimit) ? `<div class="couts">${G.players.map((pl, pi) => {
+        const route = F501.checkoutRoute(VIEW, G, pi);
+        const also = F501.checkouts(VIEW, G)[pi].names;
+        return `<div class="cout">
+          <div class="h">${solo ? '' : `<b>${esc(pl.name)}</b> needed `}${solo ? `You needed ${pl.score}` : pl.score}</div>
+          <div class="d">${route
+            ? (route.players.length === 1
+                ? `<b>${esc(route.players[0])}</b> would have done it.`
+                : `<b>${esc(route.players[0])}</b> then <b>${esc(route.players[1])}</b>
+                   \u2014 ${route.values[0]} and ${route.values[1]}.`)
+            : 'No way home from there, in one or two.'}</div>
+          ${also.length > 1 ? `<div class="d">Others on ${pl.score}: ${
+            esc(also.slice(1, 5).join(' \u00b7 '))}</div>` : ''}
+        </div>`; }).join('')}</div>` : ''}
       <button class="btn" id="again">Play again</button>
       <button class="btn ghost" id="home2">Home</button>`
     : `
@@ -541,16 +554,18 @@ function play501(msg = null, tone = '') {
         <span class="num" id="f5num">${G.turnSeconds}</span></div>` : ''}
       <div class="turnline">${solo ? '' : `<b>${esc(G.players[G.turn].name)}</b> to throw — `}name ${/^[aeiou]/i.test(shortClub(G.club)) ? 'an' : 'a'} ${esc(shortClub(G.club))} player</div>
       ${F5HINT ? `<div class="opts">${F5HINT.map(o =>
-          `<button class="opt" data-hid="${esc(o.id)}">${esc(o.name)}</button>`).join('')}</div>`
-        : `<div class="entry"><input id="guess" placeholder="Player name" autocomplete="off"
+          `<button class="opt" data-hid="${esc(o.id)}">${esc(o.name)}</button>`).join('')}</div>` : ''}
+      ${F5LIST ? '' : `<div class="entry"><input id="guess" placeholder="Player name" autocomplete="off"
              autocapitalize="words" autocorrect="off" spellcheck="false"
              ><button class="btn" id="submit">Score</button></div>
            <div class="sugg" id="sugg" hidden></div>`}
       <div class="row2">
-        ${!F5HINT && G.players[G.turn].hints > 0
-          ? `<button class="btn ghost" id="hint">Hint (${G.players[G.turn].hints} left)</button>` : ''}
-        ${!F5LIST && G.players[G.turn].hints > 0
-          ? `<button class="btn ghost" id="plist">Player list</button>` : ''}
+        ${F5HINT || G.players[G.turn].hints <= 0 ? ''
+          : `<button class="btn ghost ${F5ASK === 'hint' ? 'warn' : ''}" id="hint">${
+              F5ASK === 'hint' ? 'Spend one? Tap again' : `Hint (${G.players[G.turn].hints} left)`}</button>`}
+        ${F5LIST || G.players[G.turn].lists <= 0 ? ''
+          : `<button class="btn ghost ${F5ASK === 'list' ? 'warn' : ''}" id="plist">${
+              F5ASK === 'list' ? 'Use your one list? Tap again' : 'Player list (1)'}</button>`}
         ${solo ? '' : '<button class="btn ghost" id="pass">Pass</button>'}
       </div>
       ${F5LIST ? `
@@ -575,11 +590,21 @@ function play501(msg = null, tone = '') {
   const again = document.getElementById('again'); if (again) again.onclick = setup501;
   const h2 = document.getElementById('home2'); if (h2) h2.onclick = home;
 
-  const commit = (r) => {
+  const commit = (r, typed) => {
     F5QUIT = false;
+    // "Pele never played for Brazil" is what an era filter looks like from the
+    // outside. If the name resolves against the whole dataset but not this
+    // round's view, say which it is.
+    if ((r.status === 'unknown' || r.status === 'ineligible') && typed) {
+      const full = lookup(NAMES, typed);
+      if (full && !VIEW.byId.has(full.id)) {
+        F5HINT = null; F5LIST = null; F5ASK = null;
+        return play501(`${full.name} is not in this round \u2014 your era filter rules him out`, 'no');
+      }
+    }
     const t = (r.status === 'ok' || r.status === 'win') ? 'ok' : 'no';
     F501.applyTurn(G, r);
-    F5HINT = null; F5LIST = null; reset501Clock();
+    F5HINT = null; F5LIST = null; F5ASK = null; reset501Clock();
     play501(F501.explain(r, scoped), t);
   };
 
@@ -597,7 +622,7 @@ function play501(msg = null, tone = '') {
   if (pass) pass.onclick = () => {
     F5QUIT = false;
     F501.passTurn(G);
-    F5HINT = null; F5LIST = null; reset501Clock();
+    F5HINT = null; F5LIST = null; F5ASK = null; reset501Clock();
     play501(`${G.players[(G.turn - 1 + G.players.length) % G.players.length].name} passed`, 'no');
   };
 
@@ -607,23 +632,28 @@ function play501(msg = null, tone = '') {
   const plist = document.getElementById('plist');
   if (plist) plist.onclick = () => {
     F5QUIT = false;
+    // One list a leg, so it is worth asking before it goes.
+    if (F5ASK !== 'list') { F5ASK = 'list'; return play501(msg, tone); }
+    F5ASK = null;
     const l = F501.redactedList(VIEW, G);
     if (!l.rows.length) return play501('Nobody left who would not bust you', 'no');
-    G.players[G.turn].hints--;
+    G.players[G.turn].lists--;
     F5LIST = l;
     play501(msg, tone);
   };
   const plc = document.getElementById('plclose');
-  if (plc) plc.onclick = () => { F5LIST = null; play501(msg, tone); };
+  if (plc) plc.onclick = () => { F5LIST = null; F5ASK = null; play501(msg, tone); };
 
   const hint = document.getElementById('hint');
   if (hint) hint.onclick = () => {
     F5QUIT = false;
+    if (F5ASK !== 'hint') { F5ASK = 'hint'; return play501(msg, tone); }
+    F5ASK = null;
     const opts = F501.hintOptions(VIEW, G, Math.random);
     if (!opts) return;
     G.players[G.turn].hints--;
     F5HINT = opts;
-    play501('Four who played for them \u2014 one of them will not bust you', '');
+    play501('Four who played for them \u2014 one will not bust you. Or name somebody else.', '');
   };
   // A hint is spent, so picking from it scores exactly as typing would.
   app.querySelectorAll('.opt[data-hid]').forEach(b => b.onclick = () => {
@@ -671,7 +701,7 @@ function play501(msg = null, tone = '') {
 
     const go = () => {
       const v = inp.value.trim(); if (!v) return;
-      commit(F501.scoreEntry(VIEW, VNAMES, G, v));
+      commit(F501.scoreEntry(VIEW, VNAMES, G, v), v);
     };
     sub.onclick = go;
     inp.focus();
@@ -864,6 +894,108 @@ function playChain(msg = null, tone = '') {
   ci.onkeydown = (e) => { if (e.key === 'Enter') go(); };
   pi.focus();
   runChainClock();
+}
+
+/* ---------------- The Database ---------------- */
+
+let DBQ = '', DBPICK = null;
+
+/**
+ * Look a player up and read his record, which is also the honest way to answer
+ * an argument: everything a game scores on, in one place, with the scope of
+ * each figure said out loud rather than implied.
+ */
+function database() {
+  enterScreen();
+  refreshView('db');
+  const draw = () => {
+    const hits = DBQ.trim().length >= 2 ? suggest(NAMES, DBQ, 12) : [];
+    const p = DBPICK ? DB.byId.get(DBPICK) : null;
+    beginPaint('database');
+    app.innerHTML = '';
+    app.append(el(`<div>
+      <div class="bar"><button class="back" id="back">\u2039 Back</button>
+        <span>${DB.players.length.toLocaleString()} players</span></div>
+      <div class="kicker">The Database</div>
+      <h1 style="font-size:30px">Look anybody <em>up</em></h1>
+      <input id="dbq" placeholder="Type a player" value="${esc(DBQ)}" autocomplete="off"
+        autocapitalize="words" autocorrect="off" spellcheck="false">
+      ${hits.length && !p ? `<div class="sugg" style="position:static;margin-top:8px">${hits.map(h =>
+        `<button class="sg" data-id="${esc(h.id)}"><span class="n">${esc(h.name)}</span>
+         <span class="m">${esc([h.nationality, h.position].filter(Boolean).join(' \u00b7 '))}</span></button>`).join('')}</div>` : ''}
+      ${p ? playerCard(p) : ''}
+    </div>`));
+    document.getElementById('back').onclick = home;
+    const q = document.getElementById('dbq');
+    q.oninput = () => { DBQ = q.value; DBPICK = null; draw(); };
+    app.querySelectorAll('.sg[data-id]').forEach(b => b.onclick = () => {
+      DBPICK = b.dataset.id; draw();
+    });
+    if (!p) q.focus();
+  };
+  draw();
+}
+
+function playerCard(p) {
+  const clubs = p.clubs.slice().sort((a, b) => (a.from || 0) - (b.from || 0));
+  const dated = new Set(clubs.map(c => c.club));
+  const extra = (p.allClubs || []).filter(c => !dated.has(c));
+  const nat = Object.entries(p.nationalTotals || {});
+  const yrs = clubs.map(c => c.from).filter(Boolean);
+  const open = clubs.some(c => c.from && c.from === Math.max(...yrs) && !c.to);
+  const ends = clubs.map(c => c.to).filter(Boolean);
+  const span = yrs.length
+    ? `${Math.min(...yrs)}\u2013${open ? 'present' : (ends.length ? Math.max(...ends) : '?')}` : '';
+  // A figure without its scope is the argument we keep having: all-competition
+  // totals come from a cross-checked club list, league figures from infoboxes.
+  const part = (a, g, label) => {
+    const bits = [];
+    if (a != null) bits.push(`<b>${a}</b> apps`);
+    if (g != null) bits.push(`<b>${g}</b> goals`);
+    // A withheld figure is left out rather than printed as a question mark:
+    // Manchester City's goals failed the record-scorer check and are not ours
+    // to quote, and "? goals" invites the reader to assume nought.
+    return bits.length ? `${bits.join(', ')} <span class="q">${label}</span>` : '';
+  };
+  const fig = (t) => {
+    if (!t) return '<span class="q">no figures</span>';
+    const bits = [part(t.apps, t.goals, 'all comps'), part(t.lgApps, t.lgGoals, 'league')]
+      .filter(Boolean);
+    return bits.length ? bits.join('<br>') : '<span class="q">no figures</span>';
+  };
+  return `<div class="pcard">
+    <div class="pn">${esc(p.name)}</div>
+    <div class="pm">${esc([p.nationality, p.position, span].filter(Boolean).join(' \u00b7 '))}${
+      p.born ? ` \u00b7 born ${p.born}` : ''}${p.died ? `, died ${p.died}` : ''}</div>
+
+    ${nat.length ? `<div class="psec">International</div>
+      ${nat.map(([c, t]) => `<div class="prow"><div class="l">${esc(c)}</div>
+        <div class="r"><b>${t.caps ?? '?'}</b> caps, <b>${t.goals ?? '?'}</b> goals</div></div>`).join('')}` : ''}
+
+    <div class="psec">Clubs</div>
+    ${(() => {
+      // Figures are held per club, not per spell, so a second spell at the same
+      // club would print the same totals again and read as if he did it twice.
+      const shown = new Set();
+      return clubs.map(c => {
+        const seen = shown.has(c.club);
+        shown.add(c.club);
+        return `<div class="prow">
+          <div class="l">${esc(shortClub(c.club))}
+            <span class="q">${c.from || '?'}${c.to && c.to !== c.from ? '\u2013' + c.to : (c.from && !c.to ? '\u2013' : '')}</span></div>
+          <div class="r">${seen
+            ? '<span class="q">counted above</span>'
+            : fig((p.clubTotals || {})[c.club])}</div></div>`;
+      }).join('');
+    })()}
+    ${extra.length ? `<div class="prow"><div class="l">Also recorded at</div>
+      <div class="r"><span class="q">${esc(extra.map(shortClub).join(' \u00b7 '))}</span></div></div>` : ''}
+
+    ${p.careerApps || p.careerGoals ? `<div class="psec">Career</div>
+      <div class="prow"><div class="l">All clubs</div><div class="r">
+        <b>${p.careerApps ?? '?'}</b> apps, <b>${p.careerGoals ?? '?'}</b> goals</div></div>` : ''}
+    ${p.noStats ? '<div class="pnote">Figures for this player are incomplete, so the number games leave him out.</div>' : ''}
+  </div>`;
 }
 
 /* ---------------- Country Conundrum ---------------- */
